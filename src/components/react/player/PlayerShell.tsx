@@ -590,20 +590,6 @@ export default function PlayerShell({
     [revealScreenCtl]
   );
 
-  const embedScreenCtl = started && !hasError && engine === 'embed';
-
-  // Playback just started on a provider frame: show the control once, then let
-  // it fall away like any other reveal.
-  useEffect(() => {
-    if (!embedScreenCtl) {
-      setScreenCtlVisible(false);
-      window.clearTimeout(screenCtlTimer.current);
-      return;
-    }
-    revealScreenCtl();
-    return () => window.clearTimeout(screenCtlTimer.current);
-  }, [embedScreenCtl, revealScreenCtl]);
-
   return (
     <div className="fp-root">
       <div
@@ -832,20 +818,6 @@ export default function PlayerShell({
         {/* Embed providers keep their own playback chrome fully interactive.
             This pointer-transparent wrapper contributes only one centered
             fullscreen/minimize button; server selection remains below stage. */}
-        {embedScreenCtl && (
-            <div className="fp-embed-screen-control is-visible">
-              <button
-                type="button"
-                className="fp-embed-screen-btn"
-                onClick={toggleFullscreen}
-                aria-label={isFullscreen ? t('exitFullscreen') : t('fullscreen')}
-                title={`${isFullscreen ? t('exitFullscreen') : t('fullscreen')} (F)`}
-              >
-                {isFullscreen ? <ExitFullscreenIcon size={22} /> : <FullscreenIcon size={22} />}
-              </button>
-            </div>
-        )}
-
         {/* Top bar: back + title. Hidden with the controls. */}
         {started && engine !== 'embed' && (
           <div
