@@ -200,7 +200,7 @@ export default function HeroCarousel({ slides, label }: Props) {
           <div className="nf-actions flex flex-row gap-3 mt-4 items-center w-full max-w-[500px]">
             <OriginButton
               onClick={() => { window.location.href = slide.href; }}
-              className="flex-1 md:flex-none md:w-[240px] h-[52px] md:h-[55px] rounded-full !bg-black/60 backdrop-blur-3xl !border !border-white/20 text-white shadow-[0_0_15px_rgba(0,0,0,0.5)]"
+              className="flex-1 md:flex-none md:w-[240px] h-[46px] md:h-[55px] rounded-full !bg-black/60 backdrop-blur-3xl !border !border-white/20 text-white shadow-[0_0_15px_rgba(0,0,0,0.5)]"
               aria-label={`Watch ${slide.title} now`}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -352,7 +352,7 @@ export default function HeroCarousel({ slides, label }: Props) {
         .nf-hero--single .nf-content-wrap { padding-bottom: 5rem; }
         @media (max-width: 767px) {
           .nf-content-wrap {
-            padding: 0 1.25rem 4rem;
+            padding: 0 1.25rem 6.5rem;
             text-align: left;
           }
           .nf-content {
@@ -710,7 +710,7 @@ function WatchlistBtn({ id, mediaType, title, posterUrl }: {
   return (
     <OriginButton
       onClick={toggle}
-      className={`shrink-0 h-[52px] w-[52px] md:h-[55px] md:w-[55px] rounded-full backdrop-blur-2xl text-white ${saved ? 'bg-white/20 border-white/40' : 'bg-black/30 border-white/10'}`}
+      className={`shrink-0 h-[46px] w-[46px] md:h-[55px] md:w-[55px] rounded-full backdrop-blur-2xl text-white ${saved ? 'bg-white/20 border-white/40' : 'bg-black/30 border-white/10'}`}
       style={{ paddingLeft: 0, paddingRight: 0 }}
       aria-pressed={saved}
       aria-label={saved ? `Remove ${title} from watchlist` : `Add ${title} to watchlist`}
