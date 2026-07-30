@@ -12,6 +12,7 @@
     "build:vercel": "DEPLOY_TARGET=vercel astro build",
     "preview": "astro preview",
     "minify:server": "node scripts/minify-server.mjs",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "deploy": "astro build && node scripts/minify-server.mjs && wrangler deploy",
     "astro": "astro"
   },

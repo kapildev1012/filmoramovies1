@@ -281,9 +281,15 @@ interface EdgeServer {
 function withTimeout(budgetMs: number, external?: AbortSignal): {
   signal: AbortSignal;
   done: () => void;
+  /** True when OUR timer fired, as opposed to the caller aborting. */
+  timedOut: () => boolean;
 } {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), budgetMs);
+  let expired = false;
+  const timer = setTimeout(() => {
+    expired = true;
+    controller.abort();
+  }, budgetMs);
   const onExternalAbort = () => controller.abort();
   external?.addEventListener('abort', onExternalAbort, { once: true });
   return {
@@ -292,6 +298,7 @@ function withTimeout(budgetMs: number, external?: AbortSignal): {
       clearTimeout(timer);
       external?.removeEventListener('abort', onExternalAbort);
     },
+    timedOut: () => expired,
   };
 }
 
@@ -300,8 +307,11 @@ function withTimeout(budgetMs: number, external?: AbortSignal): {
  * endpoint already probes all five providers in parallel behind its own deadline
  * — five requests from the browser would only add five TLS handshakes.
  *
- * Retries once on a transient failure (the endpoint is same-origin, so a failure
- * here is usually a dropped connection rather than a real answer).
+ * Retries once on a transient failure (a dropped connection to a same-origin
+ * route), but NEVER on our own timeout. Retrying a timeout would double the
+ * worst case, and the replacement request could only answer after the selection
+ * budget had already expired — it would cost a round-trip to produce an answer
+ * nobody is still waiting for.
  */
 async function probeEdge(
   target: HealthTarget,
@@ -325,8 +335,8 @@ async function probeEdge(
     const data = (await response.json()) as { servers?: EdgeServer[] };
     return data.servers ?? null;
   } catch {
-    const aborted = signal?.aborted === true;
-    if (!aborted && attempt < EDGE_RETRIES) return probeEdge(target, signal, attempt + 1);
+    const retryable = !gate.timedOut() && signal?.aborted !== true && attempt < EDGE_RETRIES;
+    if (retryable) return probeEdge(target, signal, attempt + 1);
     return null;
   } finally {
     gate.done();
@@ -339,6 +349,11 @@ async function probeEdge(
  *
  * All providers are probed in the same tick — `Promise.all` over one request
  * each — so the whole pass costs one round-trip, not five.
+ *
+ * A failed HEAD is retried once as a GET before we conclude anything, because
+ * some hosts reject HEAD at the connection level. Without that retry a perfectly
+ * good provider could be disqualified for a protocol quirk, and `reachable:
+ * false` is a hard gate — it has to be earned.
  */
 async function probeReachability(
   ids: readonly string[],
@@ -347,6 +362,27 @@ async function probeReachability(
   const out = new Map<string, { reachable: boolean | null; latencyMs: number | null }>();
   if (typeof fetch !== 'function') return out;
 
+  const attempt = async (origin: string, method: 'HEAD' | 'GET', budgetMs: number) => {
+    const gate = withTimeout(budgetMs, signal);
+    const startedAt = now();
+    try {
+      await fetch(origin, {
+        method,
+        mode: 'no-cors',
+        // Never let a cached opaque response answer a liveness question.
+        cache: 'no-store',
+        redirect: 'follow',
+        referrerPolicy: 'no-referrer',
+        signal: gate.signal,
+      });
+      return { ok: true, timedOut: false, latencyMs: Math.round(now() - startedAt) };
+    } catch {
+      return { ok: false, timedOut: gate.timedOut() || signal?.aborted === true, latencyMs: null };
+    } finally {
+      gate.done();
+    }
+  };
+
   await Promise.all(
     ids.map(async (id) => {
       const origin = PROVIDER_ORIGIN[id];
@@ -354,27 +390,28 @@ async function probeReachability(
         out.set(id, { reachable: null, latencyMs: null });
         return;
       }
-      const gate = withTimeout(REACHABILITY_BUDGET_MS, signal);
-      const startedAt = now();
-      try {
-        await fetch(origin, {
-          method: 'HEAD',
-          mode: 'no-cors',
-          // Never let a cached opaque response answer a liveness question.
-          cache: 'no-store',
-          redirect: 'follow',
-          referrerPolicy: 'no-referrer',
-          signal: gate.signal,
-        });
-        out.set(id, { reachable: true, latencyMs: Math.round(now() - startedAt) });
-      } catch {
-        // Distinguish "we ran out of time" (unknown) from "the browser refused
-        // to talk to this host" (a real, disqualifying negative).
-        const timedOut = gate.signal.aborted;
-        out.set(id, { reachable: timedOut ? null : false, latencyMs: null });
-      } finally {
-        gate.done();
+
+      // Two attempts share the budget, so a retry can never push the pass over
+      // its deadline.
+      const head = await attempt(origin, 'HEAD', Math.round(REACHABILITY_BUDGET_MS * 0.6));
+      if (head.ok) {
+        out.set(id, { reachable: true, latencyMs: head.latencyMs });
+        return;
       }
+      if (head.timedOut) {
+        // Ran out of time rather than being refused: unknown, not negative.
+        out.set(id, { reachable: null, latencyMs: null });
+        return;
+      }
+
+      const get = await attempt(origin, 'GET', Math.round(REACHABILITY_BUDGET_MS * 0.4));
+      if (get.ok) {
+        out.set(id, { reachable: true, latencyMs: get.latencyMs });
+        return;
+      }
+      // Refused both ways. That is a network-level block, and the only thing
+      // in this module allowed to disqualify a provider outright.
+      out.set(id, { reachable: get.timedOut ? null : false, latencyMs: null });
     })
   );
 
@@ -530,7 +567,16 @@ export function prefetchWhenIdle(target: HealthTarget): void {
  * 1. A fresh cache entry is returned synchronously-fast, with no network at all.
  * 2. A stale-but-recent entry is returned immediately AND revalidated in the
  *    background, so playback starts now and the next pick is current.
- * 3. Otherwise a full pass runs under the selection budget.
+ * 3. Otherwise a full pass runs under the selection budget — and it is SHARED.
+ *    Two callers asking at the same moment (React's development double-mount, a
+ *    prefetch racing the real selection, two player islands on one page) must
+ *    cost one pass, not two: five probes per provider per caller is exactly the
+ *    kind of waste an automatic system should never generate.
+ *
+ * The shared pass deliberately does not take the caller's AbortSignal: it is
+ * already bounded by the selection budget, and letting whichever caller unmounts
+ * first abort the work would hand the other caller a degraded result. Callers
+ * check their own signal after awaiting and discard what they no longer need.
  */
 export async function resolveServerHealth(
   target: HealthTarget,
@@ -545,5 +591,14 @@ export async function resolveServerHealth(
     prefetchServerHealth(target);
     return cached.result;
   }
-  return checkServerHealth(target, options);
+
+  const key = healthKey(target);
+  const existing = inFlight.get(key);
+  if (existing) return existing;
+
+  const run = checkServerHealth(target, { budgetMs: options.budgetMs }).finally(() =>
+    inFlight.delete(key)
+  );
+  inFlight.set(key, run);
+  return run;
 }
