@@ -105,13 +105,58 @@ export function getEmbedApiKey(): string {
 //     (llvpn.com/tag.min.js) and iframes vsembed.ru. Pure ad vector.
 //   • 2embed.cc — ad-heavy wrapper, no availability signal at all.
 
-/** Direct player URL for a provider, given a target. Never includes secrets. */
-function providerUrl(server: EmbedServerId, target: EmbedTarget): string {
+/**
+ * Query parameter each provider uses to start playback at a position, so an
+ * automatic server switch can resume where the dead server stopped instead of
+ * restarting the title. Seconds in every case.
+ *
+ * PROVENANCE — this is a per-provider fact, not a guess we can share:
+ *   • vidlink   `startAt`  — documented on vidlink.pro ("Starts the video at the
+ *                            specified time in seconds").
+ *   • videasy   `progress` — documented as the resume position parameter.
+ *   • nexstream `progress` — vidking's player takes the same parameter.
+ *   • vidfast   `startAt`  — NOT documented; sent because an unrecognised query
+ *                            parameter is ignored, so the worst case is that the
+ *                            viewer restarts the title (exactly today's
+ *                            behaviour) and the best case is a clean resume.
+ *   • vidsrcin  none       — takes no player parameters at all; omitted rather
+ *                            than sending noise.
+ */
+const RESUME_PARAM: Readonly<Record<EmbedServerId, string | null>> = {
+  vidsrcin: null,
+  vidlink: 'startAt',
+  videasy: 'progress',
+  vidfast: 'startAt',
+  nexstream: 'progress',
+};
+
+/**
+ * Append the provider's resume parameter to a player URL.
+ *
+ * Positions under a second are dropped: they are indistinguishable from "start
+ * from the beginning" and would only add a parameter for no effect.
+ */
+function withResume(url: string, server: EmbedServerId, startAtSeconds: number): string {
+  const param = RESUME_PARAM[server];
+  const seconds = Math.floor(startAtSeconds);
+  if (!param || !Number.isFinite(seconds) || seconds < 1) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}${param}=${seconds}`;
+}
+
+/**
+ * Direct player URL for a provider, given a target. Never includes secrets.
+ *
+ * `startAtSeconds` is the playback position to resume from (0 = from the start).
+ * It exists for failover: when a server dies mid-title the replacement is asked
+ * to start where the viewer was, so the switch costs a buffer, not a rewind.
+ */
+function providerUrl(server: EmbedServerId, target: EmbedTarget, startAtSeconds = 0): string {
   const isMovie = target.kind === 'movie';
   const { id } = target;
   const s = isMovie ? '' : String((target as Extract<EmbedTarget, { kind: 'tv' }>).season);
   const e = isMovie ? '' : String((target as Extract<EmbedTarget, { kind: 'tv' }>).episode);
 
+  const base = ((): string => {
   switch (server) {
     case 'vidsrcin':
       return isMovie
@@ -139,6 +184,9 @@ function providerUrl(server: EmbedServerId, target: EmbedTarget): string {
         ? `https://www.vidking.net/embed/movie/${id}?color=${ACCENT}&autoPlay=true`
         : `https://www.vidking.net/embed/tv/${id}/${s}/${e}?color=${ACCENT}&autoPlay=true&nextEpisode=true&episodeSelector=true`;
   }
+  })();
+
+  return withResume(base, server, startAtSeconds);
 }
 
 /** CodeSpecter JSON endpoint that resolves a real source URL for a target. */
@@ -329,9 +377,34 @@ export interface AvailableServer {
   bitrateKbps: number | null;
   /** Badge text ("1080p"), or null while quality data is unavailable. */
   qualityLabel: string | null;
+  /**
+   * True when the probe was still in flight when the response deadline expired,
+   * so this server is "not answered yet" rather than "did not answer". The
+   * difference matters: `online: false` with `pending: true` must not be scored
+   * as a failure (see scoreServer in player/serverRanking.ts), and the probe is
+   * left running so it populates the cache for the revalidation pass.
+   */
+  pending: boolean;
 }
 
 const CONFIDENCE_RANK: Record<ProbeConfidence, number> = { title: 0, live: 1 };
+
+/**
+ * Hard ceiling on how long {@link getAvailableServers} may take.
+ *
+ * The player's whole automatic-selection budget is one second, and this request
+ * is the slowest thing inside it, so the endpoint must answer on a clock rather
+ * than when the slowest provider feels like it. Probes that miss the deadline are
+ * not cancelled — they keep running and write their result into the module cache,
+ * so the next request (the client's revalidation, ~45s later, or a second viewer)
+ * gets the full picture for free.
+ */
+export const DEFAULT_PROBE_DEADLINE_MS = 800;
+
+export interface AvailabilityOptions {
+  /** Wall-clock budget for the whole parallel pass. Clamped to 200–4000ms. */
+  deadlineMs?: number;
+}
 
 /**
  * Probe every provider in parallel and describe all of them.
@@ -340,42 +413,79 @@ const CONFIDENCE_RANK: Record<ProbeConfidence, number> = { title: 0, live: 1 };
  * it runs from a datacenter IP that providers throttle, so a failed probe often
  * means "we could not check", not "this will not play". Omitting the button
  * would take away a server that works fine in the viewer's browser. Instead the
- * probe result rides along as `online` / `verified` / `latencyMs`, and the
- * player's own ranking (src/lib/player/serverRanking.ts) turns those signals
- * into the automatic pick. Selecting any server always plays.
+ * probe result rides along as `online` / `verified` / `latencyMs` / `pending`,
+ * and the player's own weighted scoring (src/lib/player/serverRanking.ts) turns
+ * those signals into the automatic pick. Selecting any server always plays.
+ *
+ * PARALLEL AND TIME-BOUNDED. All five probes start in the same tick, and the
+ * whole pass is raced against `deadlineMs`: whatever has answered by then is
+ * reported, the rest come back `pending: true`. That is what keeps automatic
+ * selection inside its one-second budget on a cold cache without lying about
+ * providers that were merely slow.
  */
-export async function getAvailableServers(target: EmbedTarget): Promise<AvailableServer[]> {
-  const results = await Promise.all(
-    EMBED_SERVER_META.map(async (meta) => {
-      const { url, latencyMs } = await probeServerTimed(meta.id, target).catch(() => ({
-        url: null,
-        latencyMs: null,
-      }));
-      const quality = qualityFor(meta.id);
-      return {
-        id: meta.id,
-        name: meta.name,
-        label: meta.label,
-        confidence: meta.confidence,
-        online: url !== null,
-        verified: url !== null && meta.confidence === 'title',
-        latencyMs,
-        maxHeight: quality.maxHeight,
-        bitrateKbps: quality.bitrateKbps,
-        qualityLabel: qualityLabel(meta.id),
-      };
-    })
-  );
+export async function getAvailableServers(
+  target: EmbedTarget,
+  options: AvailabilityOptions = {}
+): Promise<AvailableServer[]> {
+  const deadlineMs = Math.min(4000, Math.max(200, options.deadlineMs ?? DEFAULT_PROBE_DEADLINE_MS));
 
-  // Confirmed servers first, then by how strong their check can ever be. This is
-  // only a sensible default order for rendering; the authoritative "which one do
-  // we play" decision is made by rankServers() in the island, which also folds in
-  // the reliability the browser has observed for itself.
-  return results.sort(
-    (a, b) =>
-      Number(b.online) - Number(a.online) ||
-      CONFIDENCE_RANK[a.confidence] - CONFIDENCE_RANK[b.confidence]
-  );
+  const describe = (
+    meta: (typeof EMBED_SERVER_META)[number],
+    probe: { url: string | null; latencyMs: number | null } | null
+  ): AvailableServer => {
+    const quality = qualityFor(meta.id);
+    return {
+      id: meta.id,
+      name: meta.name,
+      label: meta.label,
+      confidence: meta.confidence,
+      online: probe?.url != null,
+      verified: probe?.url != null && meta.confidence === 'title',
+      latencyMs: probe?.latencyMs ?? null,
+      maxHeight: quality.maxHeight,
+      bitrateKbps: quality.bitrateKbps,
+      qualityLabel: qualityLabel(meta.id),
+      pending: probe === null,
+    };
+  };
+
+  // One shared timer for the whole pass rather than one per probe, so five
+  // providers cost one deadline instead of five staggered ones.
+  let expire: () => void = () => {};
+  const deadline = new Promise<null>((resolve) => {
+    const timer = setTimeout(() => resolve(null), deadlineMs);
+    expire = () => clearTimeout(timer);
+  });
+
+  try {
+    const results = await Promise.all(
+      EMBED_SERVER_META.map(async (meta) => {
+        const probe = probeServerTimed(meta.id, target).catch(() => ({
+          url: null,
+          latencyMs: null,
+        }));
+        // Race, do not cancel: a probe that loses the race still finishes and
+        // caches its answer, which is what makes the revalidation pass instant.
+        const settled = await Promise.race([probe, deadline]);
+        return describe(meta, settled);
+      })
+    );
+
+    // Confirmed servers first, then by how strong their check can ever be, with
+    // still-pending servers ahead of confirmed failures — an unanswered probe is
+    // weaker evidence than a refusal, not stronger. This is only a sensible
+    // default order for rendering; the authoritative "which one do we play"
+    // decision is made by rankServers() in the island, which also folds in the
+    // reliability the browser has observed for itself.
+    return results.sort(
+      (a, b) =>
+        Number(b.online) - Number(a.online) ||
+        Number(b.pending) - Number(a.pending) ||
+        CONFIDENCE_RANK[a.confidence] - CONFIDENCE_RANK[b.confidence]
+    );
+  } finally {
+    expire();
+  }
 }
 
 /**
@@ -389,14 +499,22 @@ export async function getAvailableServers(target: EmbedTarget): Promise<Availabl
  */
 export async function resolveEmbedUrl(
   target: EmbedTarget,
-  requested: EmbedServerId | null
+  requested: EmbedServerId | null,
+  /** Resume position in seconds, forwarded to providers that accept one. */
+  startAtSeconds = 0
 ): Promise<{ url: string; server: EmbedServerId; confirmed: boolean }> {
   if (requested) {
     const url = await probeServer(requested, target).catch(() => null);
-    if (url) return { url, server: requested, confirmed: true };
+    // A probed URL is the provider's own player URL, so the resume parameter
+    // belongs on it too — otherwise a confirmed server would silently rewind.
+    if (url) return { url: withResume(url, requested, startAtSeconds), server: requested, confirmed: true };
     // Unconfirmed: hand over the provider's own player URL and let the browser
     // decide. Never null — a button the user pressed must do something.
-    return { url: providerUrl(requested, target), server: requested, confirmed: false };
+    return {
+      url: providerUrl(requested, target, startAtSeconds),
+      server: requested,
+      confirmed: false,
+    };
   }
 
   const byConfidence = [...EMBED_SERVER_META].sort(
@@ -405,13 +523,17 @@ export async function resolveEmbedUrl(
 
   for (const meta of byConfidence) {
     const url = await probeServer(meta.id, target).catch(() => null);
-    if (url) return { url, server: meta.id, confirmed: true };
+    if (url) return { url: withResume(url, meta.id, startAtSeconds), server: meta.id, confirmed: true };
   }
 
   // Nothing answered — still play the strongest provider rather than showing a
   // dead frame; the player UI offers the other servers plus Reload.
   const fallback = byConfidence[0]!;
-  return { url: providerUrl(fallback.id, target), server: fallback.id, confirmed: false };
+  return {
+    url: providerUrl(fallback.id, target, startAtSeconds),
+    server: fallback.id,
+    confirmed: false,
+  };
 }
 
 // ─── Back-compat helpers ──────────────────────────────────────────────────────
@@ -419,8 +541,12 @@ export async function resolveEmbedUrl(
 // without checking availability — prefer resolveEmbedUrl().
 
 /** Build a movie embed URL for a specific server (no availability check). */
-export function movieEmbedUrl(tmdbId: number | string, server: EmbedServerId): string {
-  return providerUrl(server, { kind: 'movie', id: tmdbId });
+export function movieEmbedUrl(
+  tmdbId: number | string,
+  server: EmbedServerId,
+  startAtSeconds = 0
+): string {
+  return providerUrl(server, { kind: 'movie', id: tmdbId }, startAtSeconds);
 }
 
 /** Build a TV episode embed URL for a specific server (no availability check). */
@@ -428,7 +554,8 @@ export function tvEmbedUrl(
   tmdbId: number | string,
   season: number | string,
   episode: number | string,
-  server: EmbedServerId
+  server: EmbedServerId,
+  startAtSeconds = 0
 ): string {
-  return providerUrl(server, { kind: 'tv', id: tmdbId, season, episode });
+  return providerUrl(server, { kind: 'tv', id: tmdbId, season, episode }, startAtSeconds);
 }

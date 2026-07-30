@@ -200,10 +200,10 @@ export default function HeroCarousel({ slides, label }: Props) {
           <div className="nf-actions flex flex-row gap-3 mt-4 items-center w-full max-w-[500px]">
             <OriginButton
               onClick={() => { window.location.href = slide.href; }}
-              className="flex-1 md:flex-none md:w-[240px] h-[46px] md:h-[55px] rounded-full !bg-black/60 backdrop-blur-3xl !border !border-white/20 text-white shadow-[0_0_15px_rgba(0,0,0,0.5)]"
+              className="flex-1 md:flex-none md:w-[240px] h-[48px] md:h-[55px] rounded-full !bg-black/60 backdrop-blur-3xl !border !border-white/20 text-white shadow-[0_0_15px_rgba(0,0,0,0.5)]"
               aria-label={`Watch ${slide.title} now`}
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M6 4.75a.75.75 0 0 1 1.18-.61l12 7.25a.75.75 0 0 1 0 1.22l-12 7.25A.75.75 0 0 1 6 19.25V4.75z" />
               </svg>
               <span>Watch Now</span>
@@ -352,7 +352,7 @@ export default function HeroCarousel({ slides, label }: Props) {
         .nf-hero--single .nf-content-wrap { padding-bottom: 5rem; }
         @media (max-width: 767px) {
           .nf-content-wrap {
-            padding: 0 1.25rem 6.5rem;
+            padding: 0 1.25rem 5rem;
             text-align: left;
           }
           .nf-content {
@@ -453,7 +453,7 @@ export default function HeroCarousel({ slides, label }: Props) {
         @media (max-width: 767px) {
           .nf-meta { 
             justify-content: flex-start;
-            background: rgba(0, 0, 0, 0.35);
+            background: rgba(0, 0, 0, 0.4);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.15);
@@ -462,7 +462,7 @@ export default function HeroCarousel({ slides, label }: Props) {
             margin-bottom: 0.75rem;
           }
           .nf-title { 
-            font-size: clamp(2.75rem, 11vw, 3.5rem); 
+            font-size: clamp(2rem, 8vw, 2.5rem); 
             margin-bottom: 0.5rem; 
             text-align: left; 
             text-wrap: balance; 
@@ -501,9 +501,10 @@ export default function HeroCarousel({ slides, label }: Props) {
         @media (max-width: 767px) {
           .nf-overview {
             -webkit-line-clamp: 4;
-            min-height: calc(1.55em * 3);
-            margin-bottom: 1.5rem;
-            font-size: 1.1rem;
+            min-height: calc(1.4em * 3);
+            margin-bottom: 1.25rem;
+            font-size: 0.95rem;
+            line-height: 1.4;
             text-align: left;
             max-width: 100%;
             margin-inline: 0;
@@ -710,7 +711,7 @@ function WatchlistBtn({ id, mediaType, title, posterUrl }: {
   return (
     <OriginButton
       onClick={toggle}
-      className={`shrink-0 h-[46px] w-[46px] md:h-[55px] md:w-[55px] rounded-full backdrop-blur-2xl text-white ${saved ? 'bg-white/20 border-white/40' : 'bg-black/30 border-white/10'}`}
+      className={`shrink-0 h-[48px] w-[48px] md:h-[55px] md:w-[55px] rounded-full backdrop-blur-2xl text-white ${saved ? 'bg-white/20 border-white/40' : 'bg-black/30 border-white/10'}`}
       style={{ paddingLeft: 0, paddingRight: 0 }}
       aria-pressed={saved}
       aria-label={saved ? `Remove ${title} from watchlist` : `Add ${title} to watchlist`}

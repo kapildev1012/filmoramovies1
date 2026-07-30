@@ -1847,10 +1847,90 @@
   background: rgb(0 0 0 / 0.25);
 }
 
+/* ─── Automatic server selection ─────────────────────────────────────────────
+   Shown while the player is scoring servers for this title. It is a STATUS, not
+   a failure: the pass is bounded to under a second (SELECTION_BUDGET_MS in
+   lib/player/serverHealth.ts), so this usually appears for a few hundred
+   milliseconds or not at all.
+
+   Same delayed-fade trick as .fp-spinner: the element mounts invisible and only
+   becomes visible if the pass is still running after 250ms, so a cache hit — the
+   common case, thanks to prefetching — never flashes anything at the viewer. */
+.fp-optimizing {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+  pointer-events: none;
+  /* Barely-there scrim: enough to read the label over a bright backdrop,
+     not enough to look like a modal. */
+  background: radial-gradient(circle at center, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.25) 70%);
+  opacity: 0;
+  animation: fp-fade-in 180ms linear 250ms forwards;
+}
+
+.fp-optimizing-ring {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 2px solid rgb(255 255 255 / 0.18);
+  border-top-color: var(--fp-accent-to, rgb(255 255 255 / 0.85));
+  animation: fp-spin 900ms linear infinite;
+}
+
+.fp-optimizing-text {
+  max-width: min(24rem, 86%);
+  color: var(--fp-ink);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+}
+
+/* Phones in landscape have very little height; keep the label but shrink it so
+   it never collides with the control bar. */
+@media (max-height: 30rem) and (orientation: landscape) {
+  .fp-optimizing {
+    gap: 0.5rem;
+  }
+  .fp-optimizing-ring {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .fp-optimizing-text {
+    font-size: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fp-optimizing {
+    animation: none;
+    opacity: 1;
+  }
+  .fp-optimizing-ring {
+    animation-duration: 2s;
+  }
+}
+
 /* A server that failed for this title stays selectable (a failed probe is not
    proof) but reads as demoted. */
 .fp-pill.is-failed {
   opacity: 0.55;
+}
+
+/* Blocked is different from failed: the viewer's own network or an extension
+   refused to reach the provider, so it will not play here until that changes.
+   Still selectable — the block may be for one origin the viewer can unblock —
+   but struck through so the reason is visible at a glance. */
+.fp-pill.is-blocked {
+  opacity: 0.5;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
 }
 
 .fp-pill-auto {
@@ -1987,6 +2067,14 @@
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--color-text-2, #888);
+}
+
+/* Used for the one state the viewer has to act on: every server failed for this
+   title, so the picker below is now their decision to make. Tinted rather than
+   coloured red — nothing is broken, there is simply nothing left to try
+   automatically. */
+.fp-notice.is-warning {
+  color: var(--fp-ink, #e8e8ea);
 }
 
 /* ─────────────────────────────────────────────────────────── Episodes ─── */

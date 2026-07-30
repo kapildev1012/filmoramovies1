@@ -193,11 +193,11 @@ export default function WatchNow({
   }, [numericId, mediaType, isSeries, effectiveSeasons]);
 
   // ── Streaming servers (embed engine only) ─────────────────────────────────
-  // The hook ranks the list and makes the automatic pick; this island only says
-  // which title it wants and reacts to outcomes. See serverRanking.ts for the
-  // order of precedence behind "best".
+  // Nothing is preselected. The hook scores every server from a parallel health
+  // pass (see lib/player/serverHealth.ts) and hands back a decision within its
+  // sub-second budget; this island only says which title it wants and reacts to
+  // outcomes. See serverRanking.ts for the weights behind "best".
   const {
-    servers,
     ranked,
     recommended,
     isAuto,
@@ -207,8 +207,10 @@ export default function WatchNow({
     useAutoServer,
     reportOutcome,
     resetTried,
-    status: serverStatus,
+    selecting,
+    exhausted,
     confirmLive,
+    prefetch,
   } = useEmbedServers({
     type: isSeries ? 'tv' : 'movie',
     id,
@@ -341,6 +343,19 @@ export default function WatchNow({
     [numericId, mediaType, title, posterUrl, backdropUrl, current, server]
   );
 
+  // ── Failover continuity ───────────────────────────────────────────────────
+  /**
+   * Latest known playback position, in seconds. Fed by the engine's progress
+   * callback (for the embed engine that means the providers which volunteer
+   * timing — see adapters/embed.ts) and used as the resume point when a server
+   * dies mid-title, so an automatic switch costs a buffer rather than a rewind.
+   */
+  const positionRef = useRef(0);
+  /** Position handed to the CURRENT embed frame. Only changes on a failover. */
+  const [embedResumeAt, setEmbedResumeAt] = useState(0);
+  /** When the current frame was mounted, for the time-to-first-frame measurement. */
+  const mountedAtRef = useRef(0);
+
   // ── The source handed to the engine ───────────────────────────────────────
   const source = useMemo<PlayerSource | null>(() => {
     if (!started) return null;
@@ -351,13 +366,19 @@ export default function WatchNow({
       return { engine: 'youtube', videoId: trailerKey, startAt: 0 };
     }
     if (engine === 'embed' && server) {
+      // `t` is the resume position. The redirect route forwards it to the
+      // provider's own resume parameter where one exists (RESUME_PARAM in
+      // lib/embed.ts) and drops it where it does not, so the worst case is the
+      // old behaviour rather than a broken URL.
+      const resume = Math.max(0, Math.floor(embedResumeAt));
+      const suffix = `${resume > 0 ? `&t=${resume}` : ''}&_=${reloadKey}`;
       const url = isSeries
-        ? `/api/embed/tv/${id}/${current?.season ?? 1}/${current?.episode ?? 1}?server=${server}&_=${reloadKey}`
-        : `/api/embed/movie/${id}?server=${server}&_=${reloadKey}`;
+        ? `/api/embed/tv/${id}/${current?.season ?? 1}/${current?.episode ?? 1}?server=${server}${suffix}`
+        : `/api/embed/movie/${id}?server=${server}${suffix}`;
       return { engine: 'embed', url, frameKey: `${server}-${reloadKey}` };
     }
     return null;
-  }, [started, engine, media, resumeAt, trailerKey, server, isSeries, id, current, reloadKey]);
+  }, [started, engine, media, resumeAt, trailerKey, server, isSeries, id, current, reloadKey, embedResumeAt]);
 
   const sourceKey = [
     engine,
@@ -374,6 +395,9 @@ export default function WatchNow({
 
   const onProgress = useCallback(
     (seconds: number, duration: number) => {
+      // Kept in a ref as well as in storage: failover needs the newest position
+      // synchronously, without waiting for a state commit.
+      if (Number.isFinite(seconds) && seconds > 0) positionRef.current = seconds;
       remember({ position: seconds, duration });
     },
     [remember]
@@ -408,12 +432,23 @@ export default function WatchNow({
   useEffect(() => {
     if (engine === 'embed' && snapshot.live && server) {
       confirmLive(server);
-      reportOutcome(server, true);
+      // How long this provider took to prove it was playing, measured from the
+      // moment its frame was mounted. This is the buffering-speed signal that
+      // shapes later automatic picks (see SCORE_WEIGHTS.buffering) — the only
+      // part of "how fast does it buffer" a cross-origin player exposes.
+      const startupMs = mountedAtRef.current > 0 ? Date.now() - mountedAtRef.current : null;
+      reportOutcome(server, true, startupMs);
     }
     // `reportOutcome` is intentionally excluded: it changes identity whenever the
     // server list changes, and re-running this on that would re-record a success.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, snapshot.live, server, confirmLive]);
+
+  // The frame for this source is (re)mounting now: start the stopwatch that the
+  // effect above stops when the provider proves it is alive.
+  useEffect(() => {
+    mountedAtRef.current = Date.now();
+  }, [sourceKey]);
 
   // Auto-failover: an embed frame that errors (or never loads — see the embed
   // adapter's load timeout) advances to the NEXT-BEST server by itself rather
@@ -435,13 +470,21 @@ export default function WatchNow({
     failoverFor.current = sourceKey;
     const next = reportOutcome(server, false);
     if (!next) return;
-    const name = servers.find((s) => s.id === next)?.name ?? next;
     setFailedOver(true);
-    showToast(t('serverSwitched', { name }));
+    // Non-intrusive and short: the viewer's video is about to continue, so the
+    // message explains in one line and leaves. The provider name goes in the
+    // persistent notice below the stage, not in the toast.
+    showToast(t('switchedToBetter'));
+    // CONTINUITY. Hand the replacement server the position we were at, so the
+    // switch costs a buffer rather than a rewind. `snapshot.currentTime` is
+    // preferred (it is the freshest reading) and `positionRef` covers the case
+    // where the provider stopped volunteering timing before it died.
+    const resumeFrom = Math.max(snapshot.currentTime || 0, positionRef.current);
+    if (resumeFrom > 1) setEmbedResumeAt(resumeFrom);
     setServer(next);
     setPreferredServer(next);
     setReloadKey((key) => key + 1);
-    remember({ server: next });
+    remember({ server: next, position: resumeFrom > 1 ? resumeFrom : undefined });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, snapshot.status, server, sourceKey]);
 
@@ -450,14 +493,18 @@ export default function WatchNow({
     // For a series with nothing selected, start at the first episode that
     // actually exists in this season (not always 1 — see firstEpisodeNumber).
     if (isSeries && !current) setCurrent({ season: activeSeason, episode: firstEpisodeNumber });
+    // Providers that accept a resume parameter now get the Continue Watching
+    // position too, so "Resume" means the same thing on every engine.
+    if (resumeAt && resumeAt > 1) setEmbedResumeAt(resumeAt);
     setStarted(true);
     setEndedFlag(false);
-  }, [isSeries, current, activeSeason, firstEpisodeNumber]);
+  }, [isSeries, current, activeSeason, firstEpisodeNumber, resumeAt]);
 
   const reload = useCallback(() => {
     setEndedFlag(false);
     // Manual retry: give the current server a genuine fresh attempt and re-enable
-    // the full failover walk.
+    // the full failover walk. The position is deliberately kept, so a reload
+    // resumes rather than restarts.
     resetTried();
     failoverFor.current = '';
     setReloadKey((key) => key + 1);
@@ -482,10 +529,14 @@ export default function WatchNow({
       setFailedOver(false);
       failoverFor.current = '';
       setEndedFlag(false);
+      // Same continuity as automatic failover: a viewer switching servers mid-film
+      // wants the new one to pick up where they were.
+      const resumeFrom = Math.max(snapshot.currentTime || 0, positionRef.current);
+      if (resumeFrom > 1) setEmbedResumeAt(resumeFrom);
       setReloadKey((key) => key + 1);
       remember({ server: next });
     },
-    [chooseServer, remember]
+    [chooseServer, remember, snapshot.currentTime]
   );
 
   /** Hand selection back to the ranking (the "Auto" pill). */
@@ -504,6 +555,10 @@ export default function WatchNow({
       setCurrent({ season, episode });
       setActiveSeason(season);
       setResumeAt(null);
+      // A different episode starts at its own beginning, never at the previous
+      // episode's position.
+      setEmbedResumeAt(0);
+      positionRef.current = 0;
       setEndedFlag(false);
       setUpNextDismissed(false);
       // New episode = new title context; a server that failed for the previous
@@ -593,6 +648,21 @@ export default function WatchNow({
     />
   );
 
+  // ── Background prefetch ───────────────────────────────────────────────────
+  // Warm the server-health cache for the NEXT episode while the current one
+  // plays, on an idle callback so it never competes with the frame being
+  // painted. When the viewer hits Next Episode the selection pass finds a fresh
+  // cache entry and picks a server with no network round-trip at all.
+  useEffect(() => {
+    if (engine !== 'embed' || !isSeries || !started || !neighbours.next) return;
+    prefetch({
+      type: 'tv',
+      id,
+      season: neighbours.next.season,
+      episode: neighbours.next.episode,
+    });
+  }, [engine, isSeries, started, neighbours.next, id, prefetch]);
+
   // ── Chrome data ───────────────────────────────────────────────────────────
   // Ranked order, so the bar reads best-first and the badge on the leader is the
   // truth about what "Auto" would play.
@@ -604,6 +674,8 @@ export default function WatchNow({
     live: s.live,
     qualityLabel: s.qualityLabel ?? null,
     latencyMs: s.latencyMs ?? null,
+    pending: s.pending ?? false,
+    reachable: s.reachable ?? null,
     failed: reason === 'failing',
   }));
 
@@ -675,11 +747,12 @@ export default function WatchNow({
             recommended={recommended}
             isAuto={isAuto}
             onAuto={switchToAuto}
-            checking={serverStatus === 'checking'}
+            checking={selecting}
             t={t}
           />
         }
         toast={toast}
+        optimizing={selecting || (engine === 'embed' && started && !server && !exhausted)}
         notice={
           <>
             {/* Honest statement of the engine's ceiling. Only shown for the
@@ -687,10 +760,15 @@ export default function WatchNow({
             {started && engine === 'embed' && (
               <p className="fp-notice">{t('tracksOnServerHint')}</p>
             )}
+            {/* Every server has now failed for this title. This is the only
+                situation in which the viewer is asked to choose one by hand. */}
+            {started && engine === 'embed' && exhausted && (
+              <p className="fp-notice is-warning">{t('allServersFailed')}</p>
+            )}
             {/* The toast that announced the fallback is gone within seconds; this
                 line stays, so a viewer who looked away still understands why they
                 are on a different server and how to change it. */}
-            {started && engine === 'embed' && failedOver && (
+            {started && engine === 'embed' && failedOver && !exhausted && (
               <p className="fp-notice">{t('serverFellBack')}</p>
             )}
           </>

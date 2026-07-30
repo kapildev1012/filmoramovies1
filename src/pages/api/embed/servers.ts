@@ -11,7 +11,12 @@
 //
 // -> { servers: [{ id, name, label, verified, online, confidence }], count }
 import type { APIRoute } from 'astro';
-import { EMBED_SERVER_META, getAvailableServers, type EmbedTarget } from '../../../lib/embed';
+import {
+  DEFAULT_PROBE_DEADLINE_MS,
+  EMBED_SERVER_META,
+  getAvailableServers,
+  type EmbedTarget,
+} from '../../../lib/embed';
 import { qualityFor, qualityLabel } from '../../../lib/player/serverRanking';
 
 export const prerender = false;
@@ -32,6 +37,9 @@ const UNPROBED = EMBED_SERVER_META.map((m) => ({
   maxHeight: qualityFor(m.id).maxHeight,
   bitrateKbps: qualityFor(m.id).bitrateKbps,
   qualityLabel: qualityLabel(m.id),
+  // "Not checked", not "checked and failed" — the client scores the two
+  // differently, and a wholesale probe failure is the former.
+  pending: true,
 }));
 
 export const GET: APIRoute = async ({ url }) => {
@@ -65,14 +73,24 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   try {
-    const servers = await getAvailableServers(target);
+    // The client hands us its own budget so the endpoint answers on the same
+    // clock the player is selecting against. Clamped in getAvailableServers.
+    const requestedBudget = Number(url.searchParams.get('budget'));
+    const servers = await getAvailableServers(target, {
+      deadlineMs: Number.isFinite(requestedBudget) && requestedBudget > 0
+        ? requestedBudget
+        : DEFAULT_PROBE_DEADLINE_MS,
+    });
     return Response.json(
-      { servers, count: servers.length },
+      { servers, count: servers.length, checkedAt: Date.now() },
       {
         headers: {
-          // Short cache: availability changes, but repeat visits within a
-          // browsing session should not re-probe every provider.
-          'Cache-Control': 'public, max-age=300, s-maxage=600',
+          // 45s matches the client-side health TTL (see player/serverHealth.ts):
+          // both layers expire together, so a viewer never scores a cached list
+          // the client already considers stale. `stale-while-revalidate` lets the
+          // edge serve instantly and refresh behind the request, which is the
+          // same trick the client cache uses.
+          'Cache-Control': 'public, max-age=45, s-maxage=45, stale-while-revalidate=120',
         },
       }
     );

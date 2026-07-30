@@ -40,6 +40,10 @@ export interface ServerOption {
   latencyMs?: number | null;
   /** True for servers that failed for this title in this session. */
   failed?: boolean;
+  /** The health check had not answered for this server inside its budget. */
+  pending?: boolean;
+  /** False when this browser's own network cannot reach the provider at all. */
+  reachable?: boolean | null;
 }
 
 interface SourceBarProps {
@@ -80,9 +84,12 @@ function useCompactViewport(): boolean {
 /** One line of plain English about what we know, used as the tooltip/aria text. */
 function describe(server: ServerOption): string {
   if (server.failed) return `${server.name} — did not play for this title; press to try again`;
+  if (server.reachable === false)
+    return `${server.name} — your network or browser is blocking this provider`;
   if (server.live) return `${server.name} — playback confirmed in your browser`;
   if (server.verified) return `${server.name} — provider has this title`;
   if (server.online) return `${server.name} — provider is online`;
+  if (server.pending) return `${server.name} — not checked yet; press to try it`;
   return `${server.name} — not confirmed from our side; press to try it`;
 }
 
@@ -189,7 +196,9 @@ export default function SourceBar({
                 {active && (active.verified || active.live) && (
                   <span className="fp-pill-dot" aria-hidden="true" />
                 )}
-                <span className="fp-server-trigger-name">{active?.name ?? t('server')}</span>
+                <span className="fp-server-trigger-name">
+                  {active?.name ?? (checking ? t('loading') : t('chooseServer'))}
+                </span>
                 {active?.qualityLabel && (
                   <span className="fp-quality-badge">{active.qualityLabel}</span>
                 )}
@@ -203,7 +212,7 @@ export default function SourceBar({
                     <button
                       key={server.id}
                       type="button"
-                      className={`fp-pill${activeServer === server.id ? ' is-active' : ''}${server.failed ? ' is-failed' : ''}`}
+                      className={`fp-pill${activeServer === server.id ? ' is-active' : ''}${server.failed ? ' is-failed' : ''}${server.reachable === false ? ' is-blocked' : ''}`}
                       aria-pressed={activeServer === server.id}
                       onClick={() => pick(server.id)}
                       title={
@@ -232,7 +241,7 @@ export default function SourceBar({
               <button
                 key={server.id}
                 type="button"
-                className={`fp-pill${activeServer === server.id ? ' is-active' : ''}${server.failed ? ' is-failed' : ''}`}
+                className={`fp-pill${activeServer === server.id ? ' is-active' : ''}${server.failed ? ' is-failed' : ''}${server.reachable === false ? ' is-blocked' : ''}`}
                 aria-pressed={activeServer === server.id}
                 onClick={() => onServer(server.id)}
                 title={

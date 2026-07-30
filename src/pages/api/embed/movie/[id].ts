@@ -48,6 +48,12 @@ export const GET: APIRoute = async ({ params, url }) => {
   // resolveEmbedUrl then picks the strongest server itself.
   const requested = normalizeServer(url.searchParams.get('server'));
 
+  // Resume position, in seconds. Sent by automatic failover so the replacement
+  // server starts where the dead one stopped instead of rewinding the title.
+  // Clamped and floored: a provider that does not support the parameter ignores
+  // it, and one that does must never receive junk.
+  const startAt = Math.max(0, Math.min(86_400, Math.floor(Number(url.searchParams.get('t')) || 0)));
+
   // FAST PATH: a server the viewer (or auto-pick) already chose wins regardless
   // of what a probe would say, so do not pay for the probe. Redirect straight to
   // the provider's player. Its own JS confirms the stream in the browser, which
@@ -56,7 +62,7 @@ export const GET: APIRoute = async ({ params, url }) => {
     return new Response(null, {
       status: 302,
       headers: {
-        Location: movieEmbedUrl(id, requested),
+        Location: movieEmbedUrl(id, requested, startAt),
         'X-Embed-Server': requested,
         'X-Embed-Confirmed': '0',
         'Cache-Control': 'private, no-store',
@@ -67,7 +73,7 @@ export const GET: APIRoute = async ({ params, url }) => {
 
   let resolved: Awaited<ReturnType<typeof resolveEmbedUrl>>;
   try {
-    resolved = await resolveEmbedUrl({ kind: 'movie', id }, requested);
+    resolved = await resolveEmbedUrl({ kind: 'movie', id }, requested, startAt);
   } catch {
     return unavailableResponse(500, 'Streaming is not configured.');
   }

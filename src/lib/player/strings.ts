@@ -30,6 +30,7 @@ export type PlayerStringKey =
   | 'servers' | 'server' | 'trailer' | 'fullTitle' | 'shortcuts' | 'gestures'
   | 'auto' | 'autoBestHint' | 'bestQuality' | 'chooseServer'
   | 'serverSwitched' | 'serverFellBack' | 'tapToUnmute'
+  | 'findingServer' | 'optimizingPlayback' | 'switchedToBetter' | 'allServersFailed'
   | 'live' | 'relatedTitles' | 'playerRegion';
 
 type Dict = Record<PlayerStringKey, string>;
@@ -73,6 +74,11 @@ const en: Dict = {
   serverSwitched: 'Switched to {name} — the previous server did not respond',
   serverFellBack:
     'That server stopped responding, so playback moved to another one automatically. You can pick a different server above.',
+  findingServer: 'Finding the best streaming server…',
+  optimizingPlayback: 'Optimising playback…',
+  switchedToBetter: 'Switched to a better server.',
+  allServersFailed:
+    'None of the servers could play this title just now. Pick one below to try it again.',
   tapToUnmute: 'Tap to unmute',
   shortcuts: 'Keyboard shortcuts', gestures: 'Touch gestures', live: 'Live',
   relatedTitles: 'More like this',
@@ -119,6 +125,11 @@ const hi: Partial<Dict> = {
   serverSwitched: '{name} पर बदल दिया — पिछला सर्वर जवाब नहीं दे रहा था',
   serverFellBack:
     'वह सर्वर जवाब नहीं दे रहा था, इसलिए प्लेबैक अपने आप दूसरे सर्वर पर चला गया। आप ऊपर से कोई और सर्वर चुन सकते हैं।',
+  findingServer: 'सबसे अच्छा स्ट्रीमिंग सर्वर खोज रहे हैं…',
+  optimizingPlayback: 'प्लेबैक ऑप्टिमाइज़ हो रहा है…',
+  switchedToBetter: 'बेहतर सर्वर पर बदल दिया।',
+  allServersFailed:
+    'इस समय कोई भी सर्वर यह टाइटल नहीं चला सका। नीचे से कोई सर्वर चुनकर फिर कोशिश करें।',
   tapToUnmute: 'आवाज़ चालू करने के लिए टैप करें',
   shortcuts: 'कीबोर्ड शॉर्टकट', gestures: 'टच जेस्चर', live: 'लाइव', relatedTitles: 'इसी तरह के और',
   playerRegion: 'वीडियो प्लेयर',

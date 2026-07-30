@@ -137,6 +137,14 @@ export interface PlayerShellProps {
    * change). Netflix-style silent recovery: it appears, it explains, it leaves.
    */
   toast?: string | null;
+  /**
+   * Automatic server selection is still running for this title.
+   *
+   * Rendered as a quiet line over the stage rather than as a blocking spinner:
+   * the pass is held to a sub-second budget (see useEmbedServers), so this is
+   * usually gone before it is read, and it must never look like an error.
+   */
+  optimizing?: boolean;
   /** Autoplay-next preference plumbing for the overflow sheet. */
   showAutoplayNext: boolean;
 }
@@ -170,6 +178,7 @@ export default function PlayerShell({
   endCard,
   notice,
   toast,
+  optimizing = false,
   showAutoplayNext,
 }: PlayerShellProps) {
   const {
@@ -641,6 +650,18 @@ export default function PlayerShell({
             >
               <PlayIcon size={30} />
             </button>
+          </div>
+        )}
+
+        {/* Automatic server selection in progress. Deliberately a quiet status
+            line and a ring — not the error card, not a modal — because nothing
+            has gone wrong: the player is choosing between working servers and
+            has under a second to do it. `aria-live="polite"` so a screen reader
+            hears it without being interrupted mid-sentence. */}
+        {started && optimizing && !hasError && (
+          <div className="fp-optimizing" role="status" aria-live="polite">
+            <span className="fp-optimizing-ring" aria-hidden="true" />
+            <span className="fp-optimizing-text">{t('findingServer')}</span>
           </div>
         )}
 

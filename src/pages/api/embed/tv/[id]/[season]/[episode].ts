@@ -43,6 +43,11 @@ export const GET: APIRoute = async ({ params, url }) => {
 
   const requested = normalizeServer(url.searchParams.get('server'));
 
+  // Resume position in seconds, sent by automatic failover so the replacement
+  // server picks up where the dead one stopped. Ignored by providers that take
+  // no such parameter — see RESUME_PARAM in src/lib/embed.ts.
+  const startAt = Math.max(0, Math.min(86_400, Math.floor(Number(url.searchParams.get('t')) || 0)));
+
   // FAST PATH: a chosen server wins whether or not a probe would confirm it, so
   // skip the probe and redirect straight to the provider's player. Removes the
   // probe round-trip (up to several seconds cold) from the first frame.
@@ -50,7 +55,7 @@ export const GET: APIRoute = async ({ params, url }) => {
     return new Response(null, {
       status: 302,
       headers: {
-        Location: tvEmbedUrl(id, season, episode, requested),
+        Location: tvEmbedUrl(id, season, episode, requested, startAt),
         'X-Embed-Server': requested,
         'X-Embed-Confirmed': '0',
         'Cache-Control': 'private, no-store',
@@ -61,7 +66,7 @@ export const GET: APIRoute = async ({ params, url }) => {
 
   let resolved: Awaited<ReturnType<typeof resolveEmbedUrl>>;
   try {
-    resolved = await resolveEmbedUrl({ kind: 'tv', id, season, episode }, requested);
+    resolved = await resolveEmbedUrl({ kind: 'tv', id, season, episode }, requested, startAt);
   } catch {
     return unavailableResponse(500, 'Streaming is not configured.');
   }
