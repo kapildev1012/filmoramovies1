@@ -226,8 +226,8 @@
      HERO CAROUSEL
   ────────────────────────────────────────── */
   .nf-hero {
-    min-height: 88svh !important;
-    max-height: 88svh !important;
+    min-height: 100svh !important;
+    max-height: 100svh !important;
   }
 
   /* Gradient: heavier bottom fade on portrait */
@@ -245,7 +245,7 @@
   /* Content: full width, balanced padding. The control strip below it owns the
      bottom-bar clearance, so the copy only needs to clear the strip. */
   .nf-content-wrap {
-    padding: 0 1.25rem 0.75rem !important;
+    padding: 0 1.25rem 0.25rem !important;
   }
   .nf-content {
     max-width: 100% !important;
@@ -977,6 +977,22 @@
   .feat-title { font-size: clamp(1.25rem, 7vw, 1.75rem) !important; }
 
   .faq-q { padding: 0.875rem var(--mob-pad-x) !important; }
+}
+
+/* ══════════════════════════════════════════════════════
+   iPhone 16 FAMILY & LARGE TALL PHONES  (390px – 767px)
+   iPhone 16 = 393px · 16 Pro = 402px · 16 Plus = 430px · 16 Pro Max = 440px.
+   These have more canvas than compact phones, so scale the hero title up and
+   let the synopsis breathe with an extra line. Height + copy position come from
+   the shared mobile block above (100svh, copy near the bottom).
+   ══════════════════════════════════════════════════════ */
+@media (min-width: 390px) and (max-width: 767px) {
+  .nf-title {
+    font-size: clamp(1.9rem, 7.5vw, 2.6rem) !important;
+  }
+  .nf-overview {
+    -webkit-line-clamp: 3 !important;
+  }
 }
 
 /* ══════════════════════════════════════════════════════

@@ -201,7 +201,7 @@ const hasContent = heroAll.length > 0 || trending.length > 0;
              router reload the whole target page in a hidden iframe on every
              navigation, and it pulled the ~870 kB three.js bundle onto the
              critical path of every page load. */}
-        <FeaturedGallery client:visible={{ rootMargin: '400px' }} images={galleryImages} />
+        <FeaturedGallery client:idle images={galleryImages} />
         <CinematicGallery images={galleryImages} />
 
         {/* ── Testimonials — editorial carousel ── */}
@@ -213,17 +213,6 @@ const hasContent = heroAll.length > 0 || trending.length > 0;
           </div>
           <TestimonialsEditorial client:visible variant="testimonials" />
         </section>
-
-        {/* ── Feature cards — "Everything You Need to Stream" ── */}
-        <div class="container">
-          <div class="feat-head" data-reveal>
-            <span class="feat-eyebrow">Why FilmoraMovies</span>
-            <h2 class="feat-title">Everything You Need to Stream</h2>
-            <p class="feat-sub">Fast, free, and in stunning quality — discover, binge, and watch across every device.</p>
-          </div>
-
-          <TestimonialsEditorial client:visible variant="features" />
-        </div>
 
 
         {/* ── FAQ Section ── */}

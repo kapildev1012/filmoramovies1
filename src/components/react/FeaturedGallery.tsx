@@ -21,6 +21,24 @@ interface Props {
   images?: string[];
 }
 
+/**
+ * Rewrite a TMDB still URL to our same-origin proxy so it can be used as a
+ * WebGL texture (which requires crossOrigin; TMDB sends no CORS header).
+ * Non-TMDB URLs (e.g. the Unsplash demo images, already CORS-enabled) pass
+ * through unchanged.
+ */
+function toGallerySrc(src: string): string {
+  try {
+    const u = new URL(src);
+    if (u.hostname === 'image.tmdb.org') {
+      return `/api/img?path=${encodeURIComponent(u.pathname)}`;
+    }
+  } catch {
+    // Relative or malformed URL — leave as-is.
+  }
+  return src;
+}
+
 // Unsplash sample images matching the demo
 const DEMO_IMAGES = [
   {
@@ -110,9 +128,12 @@ export default function FeaturedGallery({ images }: Props) {
   }, []);
 
   // Convert plain string URLs to the { src, alt } format the gallery expects.
+  // TMDB stills are rewritten to our same-origin proxy (/api/img): WebGL
+  // textures require crossOrigin and TMDB sends no CORS header, so loading them
+  // directly threw and destroyed the whole gallery. Same-origin sidesteps it.
   const galleryImages =
     images && images.length
-      ? images.map((src, i) => ({ src, alt: `Gallery image ${i + 1}` }))
+      ? images.map((src, i) => ({ src: toGallerySrc(src), alt: `Gallery image ${i + 1}` }))
       : DEMO_IMAGES;
 
   return (

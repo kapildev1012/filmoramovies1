@@ -296,7 +296,7 @@ export default function HeroCarousel({ slides, label }: Props) {
         }
         .nf-hero:focus-visible { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.6); }
         @media (max-width: 767px) {
-          .nf-hero { min-height: 82svh; max-height: 82svh; }
+          .nf-hero { min-height: 100svh; max-height: 100svh; }
           /* Frame the subject's face/upper body on portrait screens */
           .nf-bg-img { object-position: center 18%; }
         }
@@ -352,14 +352,14 @@ export default function HeroCarousel({ slides, label }: Props) {
         .nf-hero--single .nf-content-wrap { padding-bottom: 5rem; }
         @media (max-width: 767px) {
           .nf-content-wrap {
-            padding: 0 1.25rem 1rem;
-            text-align: center;
+            padding: 0 1.25rem 4rem;
+            text-align: left;
           }
           .nf-content {
             max-width: 100%;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            align-items: flex-start;
           }
           /* Single-slide hero has no strip, so it must clear the tab bar itself */
           .nf-hero--single .nf-content-wrap {
@@ -377,7 +377,15 @@ export default function HeroCarousel({ slides, label }: Props) {
               transparent 100%
             );
           }
-          .nf-grad-left { display: none; }
+          .nf-grad-left {
+            display: block;
+            background: linear-gradient(
+              to right,
+              rgba(0,0,0,0.9) 0%,
+              rgba(0,0,0,0.5) 45%,
+              transparent 85%
+            );
+          }
         }
 
 
@@ -443,9 +451,22 @@ export default function HeroCarousel({ slides, label }: Props) {
           animation: nf-fade-up 0.5s ease backwards; animation-delay: 100ms;
         }
         @media (max-width: 767px) {
-          .nf-meta { justify-content: center; }
-          .nf-title { font-size: clamp(2.15rem, 8vw, 2.75rem); margin-bottom: 0.5rem; text-align: center; }
-          .nf-overview { font-size: 0.95rem; margin-bottom: 1.25rem; text-align: center; max-width: 90%; margin-inline: auto; -webkit-line-clamp: 4; }
+          .nf-meta { 
+            justify-content: flex-start;
+            background: rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 0.35rem 0.85rem;
+            border-radius: 99px;
+            margin-bottom: 0.75rem;
+          }
+          .nf-title { 
+            font-size: clamp(2.75rem, 11vw, 3.5rem); 
+            margin-bottom: 0.5rem; 
+            text-align: left; 
+            text-wrap: balance; 
+          }
         }
 
         /* Genres */
@@ -479,24 +500,30 @@ export default function HeroCarousel({ slides, label }: Props) {
         }
         @media (max-width: 767px) {
           .nf-overview {
-            -webkit-line-clamp: 2;
-            min-height: calc(1.55em * 2);
-            margin-bottom: 1.25rem;
-            font-size: 0.875rem;
+            -webkit-line-clamp: 4;
+            min-height: calc(1.55em * 3);
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+            text-align: left;
+            max-width: 100%;
+            margin-inline: 0;
+            color: rgba(255, 255, 255, 0.9);
           }
-          /* Centered genres read cleaner with dot separators than left borders */
-          .nf-genres { justify-content: center; gap: 0.5rem; margin-bottom: 0.875rem; }
+          /* Left aligned glassy chips for genres on mobile */
+          .nf-genres { justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.875rem; flex-wrap: wrap; }
           .nf-genre {
             border-left: none;
-            padding-left: 0;
-            color: rgba(255,255,255,0.7);
+            padding: 0.25rem 0.65rem;
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
           }
-          .nf-genre:first-child { color: rgba(255,255,255,0.7); }
-          .nf-genre:not(:first-child)::before {
-            content: '•';
-            margin-right: 0.5rem;
-            color: rgba(255,255,255,0.4);
-          }
+          .nf-genre:first-child { color: rgba(255, 255, 255, 0.9); padding: 0.25rem 0.65rem; }
+          .nf-genre:not(:first-child)::before { display: none; }
         }
 
         /* Actions: one clear, long primary button plus a compact list action. */
@@ -547,10 +574,10 @@ export default function HeroCarousel({ slides, label }: Props) {
         .nf-btn--wl--saved { border-color: #e82728; color: #ff5b5d; }
         @media (max-width: 767px) {
           .nf-actions {
-            justify-content: center;
+            justify-content: flex-start;
             flex-wrap: nowrap;
-            max-width: 420px;
-            margin: 0.35rem auto 0;
+            max-width: 100%;
+            margin: 0;
             gap: 0.75rem;
           }
           .nf-actions .nf-ihb {
@@ -628,18 +655,17 @@ export default function HeroCarousel({ slides, label }: Props) {
         .nf-ctl:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
         @media (max-width: 767px) {
-          /* Centre the indicator and lift it clear of the floating tab bar,
-             which previously covered the dots. */
+          /* Align the indicator to the left to match the editorial layout */
           .nf-strip {
-            justify-content: center;
-            padding: 0 1rem calc(72px + env(safe-area-inset-bottom, 0px));
+            justify-content: flex-start;
+            padding: 0 1.25rem calc(72px + env(safe-area-inset-bottom, 0px));
           }
           .nf-strip-left { gap: 0.625rem; }
           .nf-strip-right { display: none; }
           .nf-counter { display: none; }
           .nf-dots { gap: 0.4rem; }
-          .nf-dot { width: 8px; height: 8px; border-radius: 999px; }
-          .nf-dot--active { width: 32px; border-radius: 999px; }
+          .nf-dot { width: 8px; height: 4px; border-radius: 999px; }
+          .nf-dot--active { width: 24px; border-radius: 999px; }
         }
 
         /* Reduced motion */
