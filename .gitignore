@@ -40,8 +40,10 @@ Thumbs.db
 # VS Code
 .vscode/settings.json
 
-# Vercel
+# Vercel & Wrangler
 .vercel
+.wrangler/
+.kiro/
 
 # nested legacy app copy (separate git repo, not part of this project)
 absent-axis/

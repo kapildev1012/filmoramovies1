@@ -1,6 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
 
-const PUBLIC_PAGE = /^(?:\/(?:movies|series|anime|netflix|prime|disney|hotstar|appletv|search)\/?|\/(?:movie|series)\/\d+\/?)$/;
+const PUBLIC_PAGE = /^(?:\/(?:movies|series|anime|netflix|prime|appletv|search)\/?|\/(?:movie|series)\/\d+\/?)$/;
 
 function isPublicCatalogPage(pathname: string): boolean {
   return pathname === '/' || PUBLIC_PAGE.test(pathname);

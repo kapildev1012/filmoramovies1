@@ -19,6 +19,9 @@ import '../styles/poster-card.css';
 import '../styles/player.css';
 import '../styles/mobile.css';
 
+import { getSessionFromRequest } from '../lib/db';
+import { getDB } from '../lib/db-driver';
+
 export interface Props {
   title?: string;
   description?: string;
@@ -37,13 +40,28 @@ const {
   title = 'Filmora Movie',
   description = 'Every movie and show, one clean place to find where to watch it.',
   image,
-  user = null,
+  user: userProp = null,
   noFooter = false,
   noNav = false,
   noIndex = false,
   noExtras = false,
   galleryImages = [],
 } = Astro.props;
+
+// Auto-resolve user session if not passed as prop
+let user = userProp;
+if (!user) {
+  try {
+    const db = await getDB(Astro.locals);
+    const session = await getSessionFromRequest(db, Astro.request);
+    if (session?.user) {
+      user = {
+        name: session.user.name,
+        avatar_url: session.user.avatar_url,
+      };
+    }
+  } catch {}
+}
 
 // Default backdrop set for the shared CinematicGallery so it renders on every
 // page (desktop + mobile) even when a page doesn't supply its own images.
@@ -105,8 +123,8 @@ const isHome = Astro.url.pathname === '/';
     <meta name="theme-color" content="#050811" />
 
     <!-- Preconnect -->
-    <link rel="preconnect" href="https://image.tmdb.org" />
-    <link rel="preconnect" href="https://api.themoviedb.org" />
+    <link rel="preconnect" href="https://api.tmdb.org" />
+    <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
 
     <!-- Google tag (gtag.js) -->
     <script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-CL6ECGJ4JL"></script>
@@ -367,6 +385,18 @@ const isHome = Astro.url.pathname === '/';
   @media (prefers-reduced-motion: reduce) {
     :global(html.nav-loading) .nav-progress,
     :global(html.nav-done) .nav-progress { transition: none; }
+  }
+
+  @media (max-width: 767px) {
+    .nav-progress,
+    .scroll-progress,
+    #nav-progress,
+    #scroll-progress {
+      display: none !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
   }
 
   main { min-height: calc(100vh - 56px); }

@@ -213,6 +213,7 @@ export default function PlayerShell({
     updatePrefs,
     toggleFullscreen,
     requestPip,
+    requestCast,
     wake,
     holdChrome,
     thumbnailAt,
@@ -837,8 +838,42 @@ export default function PlayerShell({
         )}
 
         {/* Embed providers keep their own playback chrome fully interactive.
-            This pointer-transparent wrapper contributes only one centered
-            fullscreen/minimize button; server selection remains below stage. */}
+            This pointer-transparent wrapper contributes the floating
+            fullscreen/minimize button on hover/tap. */}
+        {started && !hasError && engine === 'embed' && (
+          <>
+            {!screenCtlVisible && (
+              <div
+                className="fp-embed-wake"
+                onClick={revealScreenCtl}
+                onTouchStart={revealScreenCtl}
+                aria-hidden="true"
+              />
+            )}
+            <div
+              className={`fp-embed-screen-control ${screenCtlVisible ? 'is-visible' : ''}`}
+              onMouseEnter={() => holdScreenCtl(true)}
+              onMouseLeave={() => holdScreenCtl(false)}
+            >
+              <button
+                type="button"
+                className="fp-embed-screen-btn"
+                onFocus={() => holdScreenCtl(true)}
+                onBlur={() => holdScreenCtl(false)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFullscreen();
+                  revealScreenCtl();
+                }}
+                aria-label={isFullscreen ? t('exitFullscreen') : t('fullscreen')}
+                title={`${isFullscreen ? t('exitFullscreen') : t('fullscreen')} (F)`}
+              >
+                {isFullscreen ? <ExitFullscreenIcon size={22} /> : <FullscreenIcon size={22} />}
+              </button>
+            </div>
+          </>
+        )}
+
         {/* Top bar: back + title. Hidden with the controls. */}
         {started && engine !== 'embed' && (
           <div
@@ -1182,6 +1217,7 @@ export default function PlayerShell({
                 onToggleGestures={toggleGestures}
                 onToggleAutoplayNext={() => updatePrefs({ autoplayNext: !prefs.autoplayNext })}
                 onPip={requestPip}
+                onCast={requestCast}
                 onReload={onReload}
                 t={t}
               />

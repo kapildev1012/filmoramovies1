@@ -108,6 +108,20 @@
     padding-top: calc(var(--mob-nav-h) + 0.5rem);
   }
 
+  /* ── Delete all top loading & progress bars on mobile ── */
+  .nav-progress,
+  .scroll-progress,
+  #nav-progress,
+  #scroll-progress,
+  [class*="loading-bar"],
+  [class*="progress-bar-top"] {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    height: 0 !important;
+  }
+
   /* Full-bleed hero pages: hero sits behind the floating nav pill — no top gap.
      Detail pages have their own backdrop hero that also handles nav clearance. */
   main:has(.nf-hero),
@@ -291,11 +305,15 @@
     padding: 0 !important;
   }
 
-  /* Bottom strip: progress dots only, lifted above the floating tab bar */
+  /* Bottom strip / loading progress bar: deleted from mobile */
   .nf-strip {
-    justify-content: center !important;
-    padding: 0 1.25rem calc(var(--mob-tab-h) + env(safe-area-inset-bottom, 0px) + 1rem) !important;
-    gap: 0.5rem !important;
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   /* ──────────────────────────────────────────

@@ -48,7 +48,17 @@ export const IMG_BASE_LG = 'https://image.tmdb.org/t/p/w780';
 const ACCENT = 'e50914';
 
 /** Identifier for a streaming server/source. */
-export type EmbedServerId = 'vidsrcin' | 'nexstream' | 'vidlink' | 'videasy' | 'vidfast';
+export type EmbedServerId =
+  | 'vidsrcin'
+  | 'vidlink'
+  | 'autoembed'
+  | 'superembed'
+  | 'vidfast'
+  | 'videasy'
+  | 'smashystream'
+  | 'embedsu'
+  | 'vidsrcicu'
+  | 'nexstream';
 
 /** How trustworthy a provider's availability probe can be. */
 export type ProbeConfidence = 'title' | 'live';
@@ -70,10 +80,15 @@ export const EMBED_SERVER_META: ReadonlyArray<{
   confidence: ProbeConfidence;
 }> = [
   { id: 'vidsrcin', name: 'VidSrc IN (Hindi)', label: 'Server 1', confidence: 'title' },
-  { id: 'vidlink', name: 'VidLink', label: 'Server 2', confidence: 'title' },
-  { id: 'vidfast', name: 'VidFast', label: 'Server 3', confidence: 'live' },
-  { id: 'videasy', name: 'Videasy', label: 'Server 4', confidence: 'live' },
-  { id: 'nexstream', name: 'NexStream', label: 'Server 5', confidence: 'title' },
+  { id: 'vidlink', name: 'VidLink (Fast HD)', label: 'Server 2', confidence: 'title' },
+  { id: 'autoembed', name: 'AutoEmbed (Multi-Sub)', label: 'Server 3', confidence: 'live' },
+  { id: 'superembed', name: 'SuperEmbed (Multi)', label: 'Server 4', confidence: 'live' },
+  { id: 'vidfast', name: 'VidFast', label: 'Server 5', confidence: 'live' },
+  { id: 'videasy', name: 'Videasy', label: 'Server 6', confidence: 'live' },
+  { id: 'smashystream', name: 'SmashyStream', label: 'Server 7', confidence: 'live' },
+  { id: 'embedsu', name: 'Embed.su (4K/1080p)', label: 'Server 8', confidence: 'live' },
+  { id: 'vidsrcicu', name: 'VidSrc ICU (Global)', label: 'Server 9', confidence: 'live' },
+  { id: 'nexstream', name: 'NexStream (VidKing)', label: 'Server 10', confidence: 'title' },
 ];
 
 const VALID_SERVERS = new Set<string>(EMBED_SERVER_META.map((s) => s.id));
@@ -125,8 +140,13 @@ export function getEmbedApiKey(): string {
 const RESUME_PARAM: Readonly<Record<EmbedServerId, string | null>> = {
   vidsrcin: null,
   vidlink: 'startAt',
-  videasy: 'progress',
+  autoembed: 'progress',
+  superembed: null,
   vidfast: 'startAt',
+  videasy: 'progress',
+  smashystream: null,
+  embedsu: null,
+  vidsrcicu: null,
   nexstream: 'progress',
 };
 
@@ -166,6 +186,14 @@ function providerUrl(server: EmbedServerId, target: EmbedTarget, startAtSeconds 
       return isMovie
         ? `https://vidlink.pro/movie/${id}?primaryColor=${ACCENT}&autoplay=true&title=false`
         : `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=${ACCENT}&autoplay=true&nextbutton=true`;
+    case 'autoembed':
+      return isMovie
+        ? `https://player.autoembed.cc/embed/movie/${id}`
+        : `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}`;
+    case 'superembed':
+      return isMovie
+        ? `https://multiembed.mov/?video_id=${id}&tmdb=1`
+        : `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`;
     case 'videasy':
       return isMovie
         ? `https://player.videasy.net/movie/${id}?color=${ACCENT}`
@@ -174,6 +202,18 @@ function providerUrl(server: EmbedServerId, target: EmbedTarget, startAtSeconds 
       return isMovie
         ? `https://vidfast.pro/movie/${id}?theme=${ACCENT}&autoPlay=true`
         : `https://vidfast.pro/tv/${id}/${s}/${e}?theme=${ACCENT}&autoPlay=true&nextButton=true`;
+    case 'smashystream':
+      return isMovie
+        ? `https://embed.smashystream.com/playere.php?tmdb=${id}`
+        : `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}`;
+    case 'embedsu':
+      return isMovie
+        ? `https://embed.su/embed/movie/${id}`
+        : `https://embed.su/embed/tv/${id}/${s}/${e}`;
+    case 'vidsrcicu':
+      return isMovie
+        ? `https://vidsrc.icu/embed/movie/${id}`
+        : `https://vidsrc.icu/embed/tv/${id}/${s}/${e}`;
     case 'nexstream':
       // NEVER point at CodeSpecter's own /embed page: that URL carries
       // ?apikey=, and the browser would see it in the 302 Location header.

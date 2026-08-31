@@ -23,7 +23,7 @@ import type {
   DiscoverSeriesParams,
 } from './types';
 
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const TMDB_BASE_URL = 'https://api.tmdb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
 
 // Runtime secret — resolved from the Cloudflare Worker env (or .env locally).
@@ -1095,12 +1095,10 @@ export async function getAnimePageData(opts: {
 
 // ─── Streaming platform IDs ───────────────────────────────────────────────────
 // TMDB watch-provider IDs (IN region)
-// Netflix=8, Amazon Prime Video=119, Disney+=122, Hotstar=122 (Star/Hotstar=392)
+// Netflix=8, Amazon Prime Video=119, Apple TV+=350
 const PROVIDER = {
   netflix:  8,
   prime:    119,
-  disney:   122,
-  hotstar:  392, // Star / Disney+ Hotstar (India)
   appletv:  350, // Apple TV+
 } as const;
 
@@ -1136,7 +1134,7 @@ export async function getTop10ByProvider(
 /**
  * Full platform page data — hero slides + multiple content rails.
  */
-export async function getPlatformPageData(platform: 'netflix' | 'prime' | 'disney' | 'hotstar' | 'appletv') {
+export async function getPlatformPageData(platform: 'netflix' | 'prime' | 'appletv') {
   const pid = PROVIDER[platform];
   const empty = { results: [] as any[], page: 1, total_pages: 0, total_results: 0 };
   const s = <T>(p: Promise<T>, fb: T): Promise<T> => p.catch(() => fb);
@@ -1168,20 +1166,19 @@ export async function getPlatformPageData(platform: 'netflix' | 'prime' | 'disne
   };
 }
 
-/** Quick home-page top-10 fetch for all 4 platforms in parallel. */
+/** Quick home-page top-10 fetch for platforms in parallel. */
 export async function getAllPlatformTop10() {
   const s = <T>(p: Promise<T>, fb: T): Promise<T> => p.catch(() => fb);
   const empty = { results: [] as any[] };
-  const [netflixTV, primeTV, hotstarTV, appletvTV] = await Promise.all([
+  const [netflixTV, primeTV, appletvTV] = await Promise.all([
     s(getTop10ByProvider(PROVIDER.netflix, 'tv'),  empty),
     s(getTop10ByProvider(PROVIDER.prime,   'tv'),  empty),
-    s(getTop10ByProvider(PROVIDER.hotstar, 'tv'),  empty),
     s(getTop10ByProvider(PROVIDER.appletv, 'tv'),  empty),
   ]);
   return {
     netflixTop10: netflixTV.results  as TMDBSeriesBase[],
     primeTop10:   primeTV.results    as TMDBSeriesBase[],
-    hotstarTop10: hotstarTV.results  as TMDBSeriesBase[],
     appletvTop10: appletvTV.results  as TMDBSeriesBase[],
   };
 }
+

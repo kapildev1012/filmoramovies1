@@ -36,7 +36,6 @@ const recentlyAdded= take(data?.upcoming.results, 20);
 
 const netflixTop10 = platformTop10?.netflixTop10 ?? [];
 const primeTop10   = platformTop10?.primeTop10   ?? [];
-const hotstarTop10 = platformTop10?.hotstarTop10 ?? [];
 const appletvTop10 = platformTop10?.appletvTop10 ?? [];
 
 // Landscape backdrops for the lightweight cinematic gallery.
@@ -62,13 +61,13 @@ const hasContent = heroAll.length > 0 || trending.length > 0;
         },
         {
           "@type": "Question",
-          "name": "Is FilmoraMovies similar to platforms like Netflix, Jio, and Hotstar?",
-          "acceptedAnswer": { "@type": "Answer", "text": "<p>Yes! Much like Netflix, Disney+ Hotstar, and JioCinema, FilmoraMovies provides a premium web streaming experience for on-demand entertainment. We focus on delivering a diverse catalog of movies and TV series with high-speed playback, making us a top alternative for binge-watchers.</p>" }
+          "name": "Is FilmoraMovies similar to major streaming platforms?",
+          "acceptedAnswer": { "@type": "Answer", "text": "<p>Yes! Much like leading streaming services, FilmoraMovies provides a premium web streaming experience for on-demand entertainment. We focus on delivering a diverse catalog of movies and TV series with high-speed playback, making us a top choice for binge-watchers.</p>" }
         },
         {
           "@type": "Question",
           "name": "What kind of films and series can I watch on FilmoraMovies?",
-          "acceptedAnswer": { "@type": "Answer", "text": "<p>Our extensive catalog covers every major genre. You can stream action-packed Hollywood blockbusters, Bollywood hits, critically acclaimed indie films, and binge-worthy web series. Whether you are looking for spine-chilling horror or a lighthearted romantic comedy, FilmoraMovies has something for everyone.</p>" }
+          "acceptedAnswer": { "@type": "Answer", "text": "<p>Our extensive catalog covers every major genre. You can stream action-packed Hollywood blockbusters, critically acclaimed indie films, and binge-worthy web series. Whether you are looking for spine-chilling horror or a lighthearted romantic comedy, FilmoraMovies has something for everyone.</p>" }
         },
         {
           "@type": "Question",
@@ -83,7 +82,7 @@ const hasContent = heroAll.length > 0 || trending.length > 0;
         {
           "@type": "Question",
           "name": "Does FilmoraMovies offer regional and international content?",
-          "acceptedAnswer": { "@type": "Answer", "text": "<p>Yes. Just like Jio and Hotstar, we understand the importance of diverse, regional content. Our platform features a wide variety of international cinema, dubbed web series, and regional films to cater to our global audience.</p>" }
+          "acceptedAnswer": { "@type": "Answer", "text": "<p>Yes. We understand the importance of diverse, regional content. Our platform features a wide variety of international cinema, dubbed web series, and regional films to cater to our global audience.</p>" }
         },
         {
           "@type": "Question",
@@ -110,6 +109,43 @@ const hasContent = heroAll.length > 0 || trending.length > 0;
     {heroAll.length > 0 && (
       <HeroCarousel client:load slides={heroAll} label="Top 10" />
     )}
+
+      {/* ── Monochrome Crystal Glass Quick Streaming Rails ── */}
+      <div class="container mx-auto px-4 pt-4 crystal-rail-wrap">
+        <div class="flex items-center gap-2.5 overflow-x-auto pb-2.5 scrollbar-none">
+          <a href="/movies" class="crystal-btn">
+            <span>Movies</span>
+          </a>
+          <a href="/series" class="crystal-btn">
+            <span>Series</span>
+          </a>
+          <a href="/channels" class="crystal-btn">
+            <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+            <span>Live TV</span>
+          </a>
+          <a href="/netflix" class="crystal-btn">
+            <span>Netflix</span>
+          </a>
+          <a href="/prime" class="crystal-btn">
+            <span>Prime Video</span>
+          </a>
+          <a href="/appletv" class="crystal-btn">
+            <span>Apple TV+</span>
+          </a>
+          <a href="/anime" class="crystal-btn">
+            <span>Anime</span>
+          </a>
+          <a href="/calendar" class="crystal-btn hidden sm:inline-flex">
+            <span>Calendar</span>
+          </a>
+          <a href="/movies?sort=popularity.desc" class="crystal-btn">
+            <span>Trending</span>
+          </a>
+          <a href="/movies?sort=vote_average.desc" class="crystal-btn">
+            <span>Top Rated</span>
+          </a>
+        </div>
+      </div>
 
       {/* ── Content rails ── */}
       <div class="home-sections">
@@ -157,13 +193,6 @@ const hasContent = heroAll.length > 0 || trending.length > 0;
         {onAir.length > 0 && (
           <div data-reveal>
             <MovieRail title="Latest TV Shows" viewAllHref="/series?sort=first_air_date.desc" items={onAir} mediaType="tv" />
-          </div>
-        )}
-
-        {/* ── Hotstar Top 10 ── */}
-        {hotstarTop10.length > 0 && (
-          <div data-reveal>
-            <Top10Rail title="Top 10 on Hotstar" viewAllHref="/hotstar" items={hotstarTop10} mediaType="tv" accentColor="#1f80e0" />
           </div>
         )}
 
@@ -231,8 +260,8 @@ const hasContent = heroAll.length > 0 || trending.length > 0;
                 a: "FilmoraMovies is a comprehensive online web streaming platform dedicated to bringing you the best in global entertainment. We offer a massive library of high-definition films, trending web series, and exclusive shows that you can stream instantly from any device."
               },
               {
-                q: "Is FilmoraMovies similar to platforms like Netflix, Jio, and Hotstar?",
-                a: "Yes! Much like Netflix, Disney+ Hotstar, and JioCinema, FilmoraMovies provides a premium web streaming experience for on-demand entertainment. We focus on delivering a diverse catalog of movies and TV series with high-speed playback, making us a top alternative for binge-watchers."
+                q: "Is FilmoraMovies similar to major streaming platforms?",
+                a: "Yes! Much like leading streaming services, FilmoraMovies provides a premium web streaming experience for on-demand entertainment. We focus on delivering a diverse catalog of movies and TV series with high-speed playback, making us a top choice for binge-watchers."
               },
               {
                 q: "What kind of films and series can I watch on FilmoraMovies?",
@@ -248,7 +277,7 @@ const hasContent = heroAll.length > 0 || trending.length > 0;
               },
               {
                 q: "Does FilmoraMovies offer regional and international content?",
-                a: "Yes. Just like Jio and Hotstar, we understand the importance of diverse, regional content. Our platform features a wide variety of international cinema, dubbed web series, and regional films to cater to our global audience."
+                a: "Yes. We understand the importance of diverse, regional content. Our platform features a wide variety of international cinema, dubbed web series, and regional films to cater to our global audience."
               },
               {
                 q: "Are subtitles available while web streaming?",

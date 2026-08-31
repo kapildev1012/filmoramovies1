@@ -1,5 +1,5 @@
 // Custom Add-on Features — AI mood-based browsing + time-available filter.
-// The NexS_api credential is server-only and is never returned to the browser.
+// Supports both GET (?mood=...&minutes=...) and POST ({ mood, minutes })
 import type { APIRoute } from 'astro';
 import { discoverMovies } from '../../lib/tmdb';
 
@@ -40,7 +40,7 @@ const MOODS = {
 
 const ALLOWED_MINUTES = new Set([60, 90, 120, 180]);
 const WINDOW_MS = 60_000;
-const REQUEST_LIMIT = 8;
+const REQUEST_LIMIT = 20;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 type Mood = keyof typeof MOODS;
@@ -97,7 +97,7 @@ function parseNexosJson(content: string): NexosSelection {
   return JSON.parse(normalized) as NexosSelection;
 }
 
-export const POST: APIRoute = async ({ request, locals }) => {
+async function handleMoodQuery(moodParam: unknown, minutesParam: unknown, request: Request, locals: any) {
   const isVercel = import.meta.env.DEPLOY_TARGET === 'vercel';
   const limit = consumeRateLimit(clientKey(request));
   if (!limit.allowed) {
@@ -108,40 +108,40 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   }
 
-  let body: { mood?: unknown; minutes?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return response({ error: 'Invalid JSON body.' }, 400);
-  }
-
-  const mood = typeof body.mood === 'string' && body.mood in MOODS ? body.mood as Mood : null;
-  const minutes = typeof body.minutes === 'number' && ALLOWED_MINUTES.has(body.minutes)
-    ? body.minutes
-    : null;
-
-  if (!mood || !minutes) {
-    return response({ error: 'Choose a supported mood and time window.' }, 400);
-  }
+  const mood = typeof moodParam === 'string' && moodParam in MOODS ? moodParam as Mood : 'light';
+  const rawMin = typeof minutesParam === 'string' ? parseInt(minutesParam, 10) : minutesParam;
+  const minutes = typeof rawMin === 'number' && ALLOWED_MINUTES.has(rawMin) ? rawMin : 90;
 
   const moodConfig = MOODS[mood];
 
   try {
-    // Pull real, well-known titles: filter to a solid vote floor so we never
-    // surface obscure single-vote entries, and vary the page (1-3) so repeat
-    // taps feel fresh while every page stays high-quality.
-    const catalog = await discoverMovies({
+    // 1. Primary discovery query
+    let catalog = await discoverMovies({
       sort_by: mood === 'surprise' ? 'popularity.desc' : 'vote_average.desc',
       with_genres: moodConfig.genres,
       'with_runtime.lte': minutes,
-      'vote_average.gte': 6,
-      'vote_count.gte': 200,
-      page: Math.floor(Math.random() * 3) + 1,
-    });
+      'vote_average.gte': 5.5,
+      'vote_count.gte': 50,
+      page: Math.floor(Math.random() * 2) + 1,
+    }).catch(() => ({ results: [] as any[] }));
 
-    const candidates = catalog.results
-      .filter((item) => item.poster_path && item.overview)
+    let candidates = (catalog.results || [])
+      .filter((item) => item.poster_path && item.title)
       .slice(0, 12);
+
+    // 2. Fallback query if runtime constraint was too strict
+    if (candidates.length < 6) {
+      const fallbackCatalog = await discoverMovies({
+        sort_by: 'popularity.desc',
+        with_genres: moodConfig.genres,
+        'vote_count.gte': 30,
+        page: 1,
+      }).catch(() => ({ results: [] as any[] }));
+
+      const additional = (fallbackCatalog.results || [])
+        .filter((item) => item.poster_path && item.title && !candidates.some(c => c.id === item.id));
+      candidates = [...candidates, ...additional].slice(0, 12);
+    }
 
     if (candidates.length === 0) {
       return response({ error: 'No matching titles are available right now.' }, 404);
@@ -156,13 +156,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const nexosKey = isVercel ? process.env.NexS_api : locals.runtime?.env?.NexS_api;
     if (nexosKey) {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12_000);
+      const timeout = setTimeout(() => controller.abort(), 8_000);
       try {
         const candidateContext = candidates.map((item) => ({
           id: item.id,
           title: item.title,
-          overview: item.overview.slice(0, 420),
-          rating: Math.round(item.vote_average * 10) / 10,
+          overview: item.overview ? item.overview.slice(0, 300) : '',
+          rating: Math.round((item.vote_average || 7) * 10) / 10,
           year: item.release_date?.slice(0, 4) || null,
         }));
 
@@ -199,31 +199,32 @@ export const POST: APIRoute = async ({ request, locals }) => {
           signal: controller.signal,
         });
 
-        if (!nexos.ok) throw new Error(`Nexos ${nexos.status}`);
-        const payload = await nexos.json() as NexosResponse;
-        const content = payload.choices?.[0]?.message?.content;
-        if (!content) throw new Error('Nexos returned no content');
+        if (nexos.ok) {
+          const payload = await nexos.json() as NexosResponse;
+          const content = payload.choices?.[0]?.message?.content;
+          if (content) {
+            const selection = parseNexosJson(content);
+            const candidateIds = new Set(candidates.map((item) => item.id));
+            const rawPicks = Array.isArray(selection.picks) ? selection.picks : [];
+            for (const raw of rawPicks) {
+              if (!raw || typeof raw !== 'object') continue;
+              const id = (raw as { id?: unknown }).id;
+              const why = (raw as { why?: unknown }).why;
+              if (typeof id !== 'number' || !candidateIds.has(id) || selectedIds.includes(id)) continue;
+              selectedIds.push(id);
+              reasons.set(id, cleanText(why, moodConfig.fallback, 90));
+              if (selectedIds.length === 6) break;
+            }
 
-        const selection = parseNexosJson(content);
-        const candidateIds = new Set(candidates.map((item) => item.id));
-        const rawPicks = Array.isArray(selection.picks) ? selection.picks : [];
-        for (const raw of rawPicks) {
-          if (!raw || typeof raw !== 'object') continue;
-          const id = (raw as { id?: unknown }).id;
-          const why = (raw as { why?: unknown }).why;
-          if (typeof id !== 'number' || !candidateIds.has(id) || selectedIds.includes(id)) continue;
-          selectedIds.push(id);
-          reasons.set(id, cleanText(why, moodConfig.fallback, 90));
-          if (selectedIds.length === 6) break;
-        }
-
-        if (selectedIds.length > 0) {
-          headline = cleanText(selection.headline, headline, 80);
-          summary = cleanText(selection.summary, summary, 180);
-          source = 'nexos';
+            if (selectedIds.length > 0) {
+              headline = cleanText(selection.headline, headline, 80);
+              summary = cleanText(selection.summary, summary, 180);
+              source = 'nexos';
+            }
+          }
         }
       } catch {
-        // The catalog remains useful if NexS is unavailable, out of credits, or misconfigured.
+        // NexS failure falls back seamlessly to catalog curation
       } finally {
         clearTimeout(timeout);
       }
@@ -243,8 +244,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         mediaType: 'movie' as const,
         title: item.title,
         year: item.release_date?.slice(0, 4) || '',
-        rating: Math.round(item.vote_average * 10) / 10,
-        overview: item.overview.slice(0, 180),
+        rating: Math.round((item.vote_average || 7) * 10) / 10,
+        overview: (item.overview || '').slice(0, 180),
         posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
         href: `/movie/${item.id}`,
         why: reasons.get(item.id) || moodConfig.fallback,
@@ -252,7 +253,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
     return response({ headline, summary, source, picks });
-  } catch {
+  } catch (err) {
+    console.error('Mood API Error:', err);
     return response({ error: 'Mood matching is temporarily unavailable.' }, 502);
   }
+}
+
+export const GET: APIRoute = async ({ request, url, locals }) => {
+  const mood = url.searchParams.get('mood') || 'light';
+  const minutes = url.searchParams.get('minutes') || 90;
+  return handleMoodQuery(mood, minutes, request, locals);
+};
+
+export const POST: APIRoute = async ({ request, locals }) => {
+  let body: { mood?: unknown; minutes?: unknown } = {};
+  try {
+    body = await request.json();
+  } catch {}
+  return handleMoodQuery(body.mood, body.minutes, request, locals);
 };

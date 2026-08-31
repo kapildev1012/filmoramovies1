@@ -62,10 +62,15 @@ export interface ServerQuality {
  */
 export const SERVER_QUALITY: Readonly<Record<string, ServerQuality>> = {
   vidsrcin: { maxHeight: null, bitrateKbps: null },
-  nexstream: { maxHeight: null, bitrateKbps: null },
   vidlink: { maxHeight: null, bitrateKbps: null },
-  videasy: { maxHeight: null, bitrateKbps: null },
+  autoembed: { maxHeight: null, bitrateKbps: null },
+  superembed: { maxHeight: null, bitrateKbps: null },
   vidfast: { maxHeight: null, bitrateKbps: null },
+  videasy: { maxHeight: null, bitrateKbps: null },
+  smashystream: { maxHeight: null, bitrateKbps: null },
+  embedsu: { maxHeight: null, bitrateKbps: null },
+  vidsrcicu: { maxHeight: null, bitrateKbps: null },
+  nexstream: { maxHeight: null, bitrateKbps: null },
 };
 
 /** Quality for a server id, always defined so callers need no null checks. */
@@ -94,9 +99,14 @@ export function qualityFor(id: string): ServerQuality {
 export const PROVIDER_PREFERENCE: Readonly<Record<string, number>> = {
   vidsrcin: 0,
   vidlink: 1,
-  vidfast: 2,
-  videasy: 3,
-  nexstream: 4,
+  autoembed: 2,
+  superembed: 3,
+  vidfast: 4,
+  videasy: 5,
+  smashystream: 6,
+  embedsu: 7,
+  vidsrcicu: 8,
+  nexstream: 9,
 };
 
 const PREFERENCE_MAX = 99;

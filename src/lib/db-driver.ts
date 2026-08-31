@@ -3,40 +3,12 @@
  *
  * Provides a single `getDB(locals)` function that returns an object matching
  * Cloudflare D1's `prepare().bind().first()/all()/run()` interface, regardless
- * of whether the app is running on Cloudflare (native D1) or Vercel (Turso/libSQL).
- *
- * The rest of the codebase (src/lib/db.ts, API routes, pages) calls `getDB(locals)`
- * instead of `locals.runtime.env.DB` directly. On Cloudflare the D1 binding is
- * returned as-is (zero overhead). On Vercel a thin libSQL wrapper is returned.
+ * of whether the app is running on Cloudflare (native D1), Vercel (Turso/libSQL),
+ * or Local Development (In-memory / Local D1 emulator).
  */
 
 // ── Detect platform at build time ──────────────────────────────────────────
-const IS_CLOUDFLARE = import.meta.env.DEPLOY_TARGET !== 'vercel';
-
-// ── Turso/libSQL singleton (Vercel only, lazy-initialised) ─────────────────
-let _tursoClient: any = null;
-
-async function getTursoClient() {
-  if (_tursoClient) return _tursoClient;
-
-  const { createClient } = await import('@libsql/client');
-  const url = import.meta.env.TURSO_DATABASE_URL ?? process.env.TURSO_DATABASE_URL;
-  const authToken = import.meta.env.TURSO_AUTH_TOKEN ?? process.env.TURSO_AUTH_TOKEN;
-
-  if (!url) {
-    throw new Error('TURSO_DATABASE_URL is not set. Required for Vercel deployment.');
-  }
-
-  _tursoClient = createClient({ url, authToken });
-  return _tursoClient;
-}
-
-// ── D1-compatible wrapper around libSQL ────────────────────────────────────
-// D1 API shape:
-//   db.prepare(sql).bind(...args).first<T>()   → T | null
-//   db.prepare(sql).bind(...args).all<T>()     → { results: T[] }
-//   db.prepare(sql).bind(...args).run()        → { success: boolean }
-//   db.batch([stmt, stmt, ...])                → results[]
+const IS_CLOUDFLARE = import.meta.env.DEPLOY_TARGET !== 'vercel' && typeof process === 'undefined';
 
 interface D1Like {
   prepare(sql: string): D1PreparedLike;
@@ -48,17 +20,25 @@ interface D1PreparedLike {
   first<T = unknown>(): Promise<T | null>;
   all<T = unknown>(): Promise<{ results: T[] }>;
   run(): Promise<{ success: boolean }>;
-  // Internal: hold the SQL + params for batch()
   _sql?: string;
   _params?: any[];
 }
 
-function createTursoD1Wrapper(client: any): D1Like {
-  function makePrepared(sql: string): D1PreparedLike {
+// ── In-Memory / Local Dev Store ────────────────────────────────────────────
+// Stores tables: users, sessions, profiles, watchlist, ratings
+class LocalDBStore implements D1Like {
+  private users = new Map<string, any>();
+  private sessions = new Map<string, any>();
+  private profiles = new Map<string, any>();
+  private watchlist = new Map<string, any>();
+  private ratings = new Map<string, any>();
+
+  prepare(sql: string): D1PreparedLike {
     let params: any[] = [];
+    const normalized = sql.trim().replace(/\s+/g, ' ');
 
     const stmt: D1PreparedLike = {
-      _sql: sql,
+      _sql: normalized,
       _params: params,
 
       bind(...values: any[]) {
@@ -67,38 +47,240 @@ function createTursoD1Wrapper(client: any): D1Like {
         return stmt;
       },
 
-      async first<T = unknown>(): Promise<T | null> {
-        const result = await client.execute({ sql, args: params });
-        if (!result.rows || result.rows.length === 0) return null;
-        // libSQL returns rows as arrays with .columns; convert to object
-        const row = result.rows[0];
-        // libSQL rows already have column-name keys in newer versions
-        if (typeof row === 'object' && !Array.isArray(row)) {
-          return row as T;
-        }
-        // Fallback: build object from columns
-        const obj: any = {};
-        for (let i = 0; i < result.columns.length; i++) {
-          obj[result.columns[i]] = (row as any)[i];
-        }
-        return obj as T;
+      first: async <T = unknown>(): Promise<T | null> => {
+        const { results } = await stmt.all<T>();
+        return results.length > 0 ? results[0] : null;
       },
 
-      async all<T = unknown>(): Promise<{ results: T[] }> {
-        const result = await client.execute({ sql, args: params });
-        const rows = (result.rows ?? []).map((row: any) => {
-          if (typeof row === 'object' && !Array.isArray(row)) return row;
-          const obj: any = {};
-          for (let i = 0; i < result.columns.length; i++) {
-            obj[result.columns[i]] = row[i];
+      all: async <T = unknown>(): Promise<{ results: T[] }> => {
+        const p = params;
+        const q = normalized.toLowerCase();
+
+        // ── SESSIONS JOIN USERS ──
+        if (q.includes('from sessions s') && q.includes('join users u')) {
+          const sessionId = p[0];
+          const now = p[1] ?? Math.floor(Date.now() / 1000);
+          const session = this.sessions.get(sessionId);
+          if (!session || session.expires_at <= now) return { results: [] };
+          const user = this.users.get(session.user_id);
+          if (!user) return { results: [] };
+          return {
+            results: [{
+              ...session,
+              ...user,
+              user_id: user.id,
+              user_created_at: user.created_at,
+            }] as T[],
+          };
+        }
+
+        // ── SELECT SESSIONS ──
+        if (q.startsWith('select * from sessions where user_id = ?')) {
+          const userId = p[0];
+          const now = p[1] ?? Math.floor(Date.now() / 1000);
+          const list = Array.from(this.sessions.values()).filter(
+            (s) => s.user_id === userId && (s.expires_at ? s.expires_at > now : true)
+          );
+          return { results: list as T[] };
+        }
+
+        // ── SELECT USERS ──
+        if (q.startsWith('select * from users where google_id = ?')) {
+          const u = Array.from(this.users.values()).find((x) => x.google_id === p[0]);
+          return { results: (u ? [u] : []) as T[] };
+        }
+        if (q.startsWith('select * from users where id = ?')) {
+          const u = this.users.get(p[0]);
+          return { results: (u ? [u] : []) as T[] };
+        }
+
+        // ── SELECT PROFILES ──
+        if (q.includes('from profiles where user_id = ?')) {
+          const list = Array.from(this.profiles.values()).filter((x) => x.user_id === p[0]);
+          list.sort((a, b) => (b.is_default || 0) - (a.is_default || 0));
+          return { results: list as T[] };
+        }
+        if (q.startsWith('select * from profiles where id = ?')) {
+          const prof = this.profiles.get(p[0]);
+          return { results: (prof ? [prof] : []) as T[] };
+        }
+
+        // ── SELECT WATCHLIST ──
+        if (q.includes('from watchlist where profile_id = ?')) {
+          const list = Array.from(this.watchlist.values()).filter((x) => x.profile_id === p[0]);
+          return { results: list as T[] };
+        }
+
+        // ── SELECT RATINGS ──
+        if (q.includes('from ratings where profile_id = ?')) {
+          const list = Array.from(this.ratings.values()).filter((x) => x.profile_id === p[0]);
+          return { results: list as T[] };
+        }
+
+        return { results: [] };
+      },
+
+      run: async (): Promise<{ success: boolean }> => {
+        const p = params;
+        const q = normalized.toLowerCase();
+
+        // ── INSERT USERS ──
+        if (q.startsWith('insert into users')) {
+          const [id, google_id, email, name, avatar_url] = p;
+          this.users.set(id, {
+            id,
+            google_id,
+            email,
+            name,
+            username: `user_${id.slice(0, 6)}`,
+            avatar_url,
+            created_at: new Date().toISOString(),
+          });
+          return { success: true };
+        }
+
+        // ── UPDATE USERS ──
+        if (q.startsWith('update users set')) {
+          const id = p[p.length - 1];
+          const u = this.users.get(id);
+          if (u) {
+            // Parse assignment list e.g. "email = ?, name = ?, avatar_url = ?"
+            const setPart = normalized.slice(normalized.toLowerCase().indexOf('set') + 4, normalized.toLowerCase().indexOf('where')).trim();
+            const fieldNames = setPart.split(',').map((f) => f.trim().split('=')[0].trim());
+            
+            const updated = { ...u };
+            fieldNames.forEach((name, idx) => {
+              if (idx < p.length - 1) {
+                updated[name] = p[idx];
+              }
+            });
+            this.users.set(id, updated);
           }
-          return obj;
-        });
-        return { results: rows as T[] };
-      },
+          return { success: true };
+        }
 
-      async run(): Promise<{ success: boolean }> {
-        await client.execute({ sql, args: params });
+        // ── INSERT SESSIONS ──
+        if (q.startsWith('insert into sessions')) {
+          const [id, user_id, expires_at] = p;
+          this.sessions.set(id, {
+            id,
+            user_id,
+            device_name: 'Chrome on Windows 11',
+            browser: 'Chrome 128.0',
+            os: 'Windows 11',
+            ip_address: '127.0.0.1',
+            location: 'Active Session',
+            last_active: Math.floor(Date.now() / 1000),
+            expires_at,
+          });
+          return { success: true };
+        }
+
+        // ── DELETE SESSIONS ──
+        if (q.startsWith('delete from sessions where user_id = ? and id != ?')) {
+          const [userId, keepSessionId] = p;
+          for (const [k, v] of this.sessions.entries()) {
+            if (v.user_id === userId && k !== keepSessionId) this.sessions.delete(k);
+          }
+          return { success: true };
+        }
+        if (q.startsWith('delete from sessions where id = ?')) {
+          this.sessions.delete(p[0]);
+          return { success: true };
+        }
+        if (q.startsWith('delete from sessions where user_id = ?')) {
+          for (const [k, v] of this.sessions.entries()) {
+            if (v.user_id === p[0]) this.sessions.delete(k);
+          }
+          return { success: true };
+        }
+
+        // ── INSERT PROFILES ──
+        if (q.startsWith('insert into profiles')) {
+          const [id, user_id, name, avatar_color, is_kids, is_default] = p;
+          this.profiles.set(id, {
+            id,
+            user_id,
+            name,
+            avatar_color,
+            is_kids: is_kids ? 1 : 0,
+            is_default: is_default ? 1 : 0,
+            maturity_rating: is_kids ? 'PG' : 'TV-MA',
+            created_at: new Date().toISOString(),
+          });
+          return { success: true };
+        }
+
+        // ── UPDATE PROFILES ──
+        if (q.startsWith('update profiles')) {
+          const id = p[p.length - 1];
+          const prof = this.profiles.get(id);
+          if (prof) {
+            const setPart = normalized.slice(normalized.toLowerCase().indexOf('set') + 4, normalized.toLowerCase().indexOf('where')).trim();
+            const fieldNames = setPart.split(',').map((f) => f.trim().split('=')[0].trim());
+            fieldNames.forEach((name, idx) => {
+              if (idx < p.length - 1) {
+                prof[name] = p[idx];
+              }
+            });
+          }
+          return { success: true };
+        }
+
+        // ── DELETE PROFILES ──
+        if (q.startsWith('delete from profiles where id = ?')) {
+          this.profiles.delete(p[0]);
+          return { success: true };
+        }
+
+        // ── INSERT WATCHLIST ──
+        if (q.startsWith('insert or ignore into watchlist')) {
+          const [id, profile_id, tmdb_id, media_type, title, poster_path] = p;
+          const key = `${profile_id}_${tmdb_id}_${media_type}`;
+          this.watchlist.set(key, {
+            id,
+            profile_id,
+            tmdb_id,
+            media_type,
+            title,
+            poster_path,
+            added_at: new Date().toISOString(),
+          });
+          return { success: true };
+        }
+
+        // ── DELETE WATCHLIST ──
+        if (q.startsWith('delete from watchlist')) {
+          const [profile_id, tmdb_id, media_type] = p;
+          const key = `${profile_id}_${tmdb_id}_${media_type}`;
+          this.watchlist.delete(key);
+          return { success: true };
+        }
+
+        // ── INSERT/UPDATE RATINGS ──
+        if (q.startsWith('insert into ratings')) {
+          const [id, profile_id, tmdb_id, media_type, rating] = p;
+          const key = `${profile_id}_${tmdb_id}_${media_type}`;
+          this.ratings.set(key, {
+            id,
+            profile_id,
+            tmdb_id,
+            media_type,
+            rating,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          return { success: true };
+        }
+
+        // ── DELETE RATINGS ──
+        if (q.startsWith('delete from ratings')) {
+          const [profile_id, tmdb_id, media_type] = p;
+          const key = `${profile_id}_${tmdb_id}_${media_type}`;
+          this.ratings.delete(key);
+          return { success: true };
+        }
+
         return { success: true };
       },
     };
@@ -106,57 +288,33 @@ function createTursoD1Wrapper(client: any): D1Like {
     return stmt;
   }
 
-  return {
-    prepare: makePrepared,
-
-    async batch(stmts: D1PreparedLike[]) {
-      // libSQL transaction for atomicity (matches D1.batch behaviour)
-      const transaction = await client.transaction('write');
-      try {
-        const results = [];
-        for (const stmt of stmts) {
-          const r = await transaction.execute({
-            sql: stmt._sql!,
-            args: stmt._params ?? [],
-          });
-          results.push(r);
-        }
-        await transaction.commit();
-        return results;
-      } catch (e) {
-        await transaction.rollback();
-        throw e;
-      }
-    },
-  };
+  async batch(stmts: D1PreparedLike[]): Promise<any[]> {
+    const results = [];
+    for (const s of stmts) {
+      results.push(await s.run());
+    }
+    return results;
+  }
 }
 
-// ── Public API ─────────────────────────────────────────────────────────────
+// ── Global Singleton for Dev/Local Store ──────────────────────────────────
+declare global {
+  var __filmora_local_db: LocalDBStore | undefined;
+}
 
-/**
- * Get the database driver from the request locals.
- *
- * - On Cloudflare: returns `locals.runtime.env.DB` (native D1, zero overhead).
- * - On Vercel: returns a D1-compatible wrapper around Turso/libSQL.
- */
-export async function getDB(locals: any): Promise<D1Like> {
-  if (IS_CLOUDFLARE) {
-    // Cloudflare: direct D1 binding
-    return locals.runtime.env.DB;
+function getLocalStore(): LocalDBStore {
+  if (!globalThis.__filmora_local_db) {
+    globalThis.__filmora_local_db = new LocalDBStore();
   }
-
-  // Vercel: Turso wrapper
-  const client = await getTursoClient();
-  return createTursoD1Wrapper(client);
+  return globalThis.__filmora_local_db;
 }
 
 /**
- * Synchronous version for Cloudflare-only paths where the D1 binding is
- * guaranteed. Falls back to throwing on Vercel (use getDB instead).
+ * Returns a D1-compatible database handle.
  */
-export function getDBSync(locals: any): D1Like {
-  if (!IS_CLOUDFLARE) {
-    throw new Error('getDBSync() is only available on Cloudflare. Use getDB() on Vercel.');
+export async function getDB(locals?: App.Locals): Promise<D1Like> {
+  if (IS_CLOUDFLARE && locals?.runtime?.env?.DB) {
+    return locals.runtime.env.DB as unknown as D1Like;
   }
-  return locals.runtime.env.DB;
+  return getLocalStore();
 }

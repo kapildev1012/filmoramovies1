@@ -18,8 +18,6 @@ const STATIC_ROUTES: UrlEntry[] = [
   { loc: '/anime',     changefreq: 'daily',   priority: 0.8 },
   { loc: '/netflix',   changefreq: 'daily',   priority: 0.8 },
   { loc: '/prime',     changefreq: 'daily',   priority: 0.8 },
-  { loc: '/disney',    changefreq: 'daily',   priority: 0.8 },
-  { loc: '/hotstar',   changefreq: 'daily',   priority: 0.8 },
   { loc: '/appletv',   changefreq: 'daily',   priority: 0.8 },
   { loc: '/search',    changefreq: 'weekly',  priority: 0.6 },
   { loc: '/watchlist', changefreq: 'monthly', priority: 0.4 },

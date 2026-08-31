@@ -131,15 +131,35 @@ const quality = rating !== null && rating >= 8 ? '4K' : 'HD';
     const type = btn.dataset.type as string;
     const wl = readWL();
     const idx = wl.findIndex((i) => i.id === id && i.mediaType === type);
-    if (idx >= 0) wl.splice(idx, 1);
-    else wl.push({ id, mediaType: type, title: btn.dataset.title || '', posterUrl: btn.dataset.poster || null, addedAt: new Date().toISOString() });
+    if (idx >= 0) {
+      wl.splice(idx, 1);
+      fetch('/api/watchlist', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tmdbId: id, mediaType: type })
+      }).catch(() => {});
+    } else {
+      const title = btn.dataset.title || '';
+      const posterUrl = btn.dataset.poster || null;
+      wl.push({ id, mediaType: type, title, posterUrl, addedAt: new Date().toISOString() });
+      fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tmdbId: id, mediaType: type, title, posterPath: posterUrl })
+      }).catch(() => {});
+    }
     try { localStorage.setItem(WL_KEY, JSON.stringify(wl)); } catch {}
+    window.dispatchEvent(new CustomEvent('filmora:watchlist-updated'));
     syncFavs();
   }
 
   document.addEventListener('click', onClick);
-  document.addEventListener('astro:page-load', syncFavs);
-  syncFavs();
+  window.addEventListener('filmora:watchlist-updated', syncFavs);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', syncFavs);
+  } else {
+    syncFavs();
+  }
 </script>
 
 <!-- Styles live in src/styles/poster-card.css (loaded by Layout.astro) so the

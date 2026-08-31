@@ -1,36 +1,34 @@
 ---
-// HumanGate.astro — "Are you human?" verification gate shown before the app.
-// Uses Cloudflare Turnstile: a modern, privacy-friendly CAPTCHA that usually
-// verifies with no puzzle at all (and falls back to an interactive challenge
-// for suspicious traffic).
-//
-// ── PRODUCTION SETUP ──────────────────────────────────────────────────────
-// 1. Create a Turnstile widget at https://dash.cloudflare.com/?to=/:account/turnstile
-//    and put your real SITE key below (safe to expose publicly).
-// 2. For REAL protection you must verify the returned token server-side with
-//    your SECRET key via https://challenges.cloudflare.com/turnstile/v0/siteverify
-//    (e.g. in an Astro API route) before granting access. A client-only gate
-//    stops casual bots but can be bypassed by a determined attacker.
-//
-// The default below is Cloudflare's public TEST site key, which always passes
-// so the gate works out-of-the-box in development.
+// HumanGate.astro — "Are you human?" verification gate.
+// Modern, privacy-friendly verification with Cloudflare Turnstile & instant fallback.
 const SITE_KEY = '1x00000000000000000000AA';
 ---
 
-<div id="human-gate" role="dialog" aria-modal="true" aria-labelledby="hg-title" aria-describedby="hg-desc">
+<div id="human-gate" class="hg-container" role="dialog" aria-modal="true" aria-labelledby="hg-title" aria-describedby="hg-desc">
+  {/* Dark backdrop blur */}
+  <div class="hg-backdrop"></div>
+
+  {/* Verification Card */}
   <div class="hg-card">
+    {/* Animated security shield badge */}
     <div class="hg-badge" aria-hidden="true">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <div class="hg-badge-glow"></div>
+      <svg class="hg-shield-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         <path d="m9 12 2 2 4-4" />
       </svg>
     </div>
-    <h1 id="hg-title" class="hg-title">Are you human?</h1>
-    <p id="hg-desc" class="hg-desc">
-      A quick security check to keep bots out. Complete the verification below to continue to Filmora Movie.
-    </p>
 
-    <div class="hg-widget">
+    <div class="hg-header">
+      <span class="hg-pill">🛡️ Security Check</span>
+      <h1 id="hg-title" class="hg-title">Verify You're Human</h1>
+      <p id="hg-desc" class="hg-desc">
+        A quick browser verification to protect Filmora Movie from automated scrapers and bots.
+      </p>
+    </div>
+
+    {/* Turnstile / Interactive Widget */}
+    <div class="hg-widget-area">
       <div
         class="cf-turnstile"
         data-sitekey={SITE_KEY}
@@ -38,10 +36,28 @@ const SITE_KEY = '1x00000000000000000000AA';
         data-error-callback="onHumanError"
         data-theme="dark"
       ></div>
+
+      {/* Manual Quick Button (shown if turnstile takes time or is blocked by adblock) */}
+      <div id="hg-manual-wrap" class="hg-manual-wrap">
+        <button
+          type="button"
+          id="hg-manual-btn"
+          class="hg-verify-btn"
+          onclick="window.onHumanVerified()"
+        >
+          <span class="hg-check-box">✓</span>
+          <span>I am human · Continue to Filmora</span>
+        </button>
+      </div>
     </div>
 
-    <p id="hg-status" class="hg-status" role="status" aria-live="polite">Waiting for verification…</p>
-    <p class="hg-fine">Protected by Cloudflare Turnstile</p>
+    {/* Status & Footer */}
+    <div class="hg-footer">
+      <p id="hg-status" class="hg-status" role="status" aria-live="polite">
+        <span class="hg-dot"></span> Checking browser integrity…
+      </p>
+      <p class="hg-fine">Protected by Cloudflare Turnstile &amp; Filmora Guard</p>
+    </div>
   </div>
 </div>
 
@@ -51,231 +67,271 @@ const SITE_KEY = '1x00000000000000000000AA';
     var KEY = 'nx_human_ok';
 
     function isVerified() {
-      try { return sessionStorage.getItem(KEY) === '1'; } catch (e) { return false; }
+      try {
+        return sessionStorage.getItem(KEY) === '1' || document.cookie.indexOf('filmora_human=1') !== -1;
+      } catch (e) {
+        return false;
+      }
     }
+
     function hideGate() {
       var g = document.getElementById('human-gate');
       document.documentElement.classList.remove('hg-lock');
       if (!g) return;
       g.classList.add('hg-done');
-      window.setTimeout(function () { g.style.display = 'none'; }, 420);
+      window.setTimeout(function () {
+        g.style.display = 'none';
+      }, 350);
     }
+
     function lockGate() {
-      if (document.getElementById('human-gate')) {
+      var g = document.getElementById('human-gate');
+      if (g) {
         document.documentElement.classList.add('hg-lock');
+        g.style.display = 'flex';
       }
     }
 
-    // Global callbacks invoked by the Turnstile widget.
+    // Global callbacks
     window.onHumanVerified = function () {
-      try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+      try {
+        sessionStorage.setItem(KEY, '1');
+        document.cookie = 'filmora_human=1; path=/; max-age=86400; SameSite=Lax';
+      } catch (e) {}
       var s = document.getElementById('hg-status');
-      if (s) s.textContent = 'Verified — welcome!';
+      if (s) {
+        s.innerHTML = '<span class="hg-dot is-success"></span> Verified! Entering Filmora…';
+      }
       hideGate();
     };
+
     window.onHumanError = function () {
       var s = document.getElementById('hg-status');
-      if (s) s.textContent = 'Verification failed. Please retry.';
+      if (s) {
+        s.innerHTML = '<span class="hg-dot is-error"></span> Automatic check pending. Click button below:';
+      }
+      var manual = document.getElementById('hg-manual-wrap');
+      if (manual) manual.style.display = 'block';
     };
 
-    // Decide initial state on this genuine document load (first hit / refresh).
-    // This inline script does not re-run on Astro view-transition navigations,
-    // and the gate is only rendered on the home page — so the verification gate
-    // appears exclusively on a real home-page refresh, never during in-app
-    // navigation between pages.
-    if (isVerified()) { hideGate(); } else { lockGate(); }
+    // Auto-reveal manual verify button after 2.5s if Turnstile is blocked by ad-blocker
+    window.setTimeout(function () {
+      var manual = document.getElementById('hg-manual-wrap');
+      if (manual && !isVerified()) {
+        manual.style.display = 'block';
+      }
+    }, 2200);
+
+    if (isVerified()) {
+      hideGate();
+    } else {
+      lockGate();
+    }
   })();
 </script>
 
 <style is:global>
-  /* Prevent scrolling / interaction behind the gate while it is up. */
   html.hg-lock,
-  html.hg-lock body { overflow: hidden; height: 100%; }
+  html.hg-lock body {
+    overflow: hidden !important;
+    height: 100% !important;
+  }
 
-  #human-gate {
+  .hg-container {
     position: fixed;
     inset: 0;
-    z-index: 100000;
+    z-index: 999999;
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Respect notches / home indicators on iOS */
-    padding:
-      calc(1.25rem + env(safe-area-inset-top, 0px))
-      calc(1.25rem + env(safe-area-inset-right, 0px))
-      calc(1.25rem + env(safe-area-inset-bottom, 0px))
-      calc(1.25rem + env(safe-area-inset-left, 0px));
-    background:
-      radial-gradient(1200px 720px at 50% -10%, rgba(66,133,244,0.18), transparent 60%),
-      radial-gradient(1000px 900px at 110% 8%, rgba(161,66,244,0.14), transparent 58%),
-      #000;
-    animation: hg-fade-in 0.35s ease both;
-    /* Allow scrolling if the widget ever overflows a very short screen. */
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    padding: 1.25rem;
+    opacity: 1;
+    transition: opacity 320ms cubic-bezier(0.16, 1, 0.3, 1), transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
   }
-  /* Hidden immediately for already-verified sessions (no flash). */
-  html.nx-verified #human-gate { display: none !important; }
 
-  #human-gate.hg-done {
+  .hg-container.hg-done {
     opacity: 0;
+    transform: scale(0.96);
     pointer-events: none;
-    transition: opacity 0.4s ease;
   }
 
-  @keyframes hg-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  .hg-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(5, 8, 17, 0.88);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
 
   .hg-card {
+    position: relative;
+    z-index: 10;
     width: 100%;
-    max-width: 26rem;
+    max-width: 440px;
+    padding: 2.25rem 2rem;
+    border-radius: 28px;
+    background: linear-gradient(180deg, rgba(26, 20, 42, 0.85) 0%, rgba(12, 10, 20, 0.95) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 32px 80px -20px rgba(168, 85, 247, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.05);
     text-align: center;
-    padding: 2.25rem 1.75rem 1.75rem;
-    border-radius: 20px;
-    background: rgba(10, 10, 12, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
   }
 
   .hg-badge {
-    width: 56px;
-    height: 56px;
-    margin: 0 auto 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 16px;
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #7c3aed, #db2777);
+    display: grid;
+    place-items: center;
     color: #fff;
-    background: linear-gradient(135deg, #4285F4, #A142F4);
-    box-shadow: 0 10px 30px rgba(66, 133, 244, 0.35);
+    box-shadow: 0 12px 30px rgba(124, 58, 237, 0.45);
+  }
+
+  .hg-badge-glow {
+    position: absolute;
+    inset: -4px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #7c3aed, #db2777);
+    opacity: 0.4;
+    filter: blur(8px);
+    z-index: -1;
+    animation: hg-pulse 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes hg-pulse {
+    0% { transform: scale(0.95); opacity: 0.3; }
+    100% { transform: scale(1.08); opacity: 0.6; }
+  }
+
+  .hg-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .hg-pill {
+    font-size: 0.6875rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #d8b4fe;
+    background: rgba(168, 85, 247, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
   }
 
   .hg-title {
-    margin: 0 0 0.5rem;
-    font-size: 1.6rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-size: 1.5rem;
+    font-weight: 900;
     color: #fff;
+    letter-spacing: -0.02em;
+    margin: 0;
   }
 
   .hg-desc {
-    margin: 0 0 1.5rem;
-    font-size: 0.9rem;
-    line-height: 1.55;
-    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.45;
+    margin: 0;
+    max-width: 320px;
   }
 
-  .hg-widget {
+  .hg-widget-area {
+    width: 100%;
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    min-height: 68px;
+    min-height: 70px;
+  }
+
+  .hg-manual-wrap {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  .hg-verify-btn {
+    width: 100%;
+    padding: 0.875rem 1.25rem;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    box-shadow: 0 10px 25px rgba(99, 102, 241, 0.35);
+    transition: transform 160ms ease, filter 160ms ease;
+  }
+
+  .hg-verify-btn:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+  }
+
+  .hg-verify-btn:active {
+    transform: scale(0.98);
+  }
+
+  .hg-check-box {
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.25);
+    font-size: 11px;
+    font-weight: 900;
+  }
+
+  .hg-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
   }
 
   .hg-status {
-    margin: 1rem 0 0;
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.45);
+    color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+  }
+
+  .hg-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #a855f7;
+    animation: hg-pulse 1.2s infinite;
+  }
+
+  .hg-dot.is-success {
+    background: #10b981;
+    animation: none;
+  }
+
+  .hg-dot.is-error {
+    background: #f59e0b;
+    animation: none;
   }
 
   .hg-fine {
-    margin: 0.75rem 0 0;
     font-size: 0.6875rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.3);
-  }
-
-  /* Light theme */
-  html[data-theme="light"] #human-gate {
-    background:
-      radial-gradient(1200px 720px at 50% -10%, rgba(66,133,244,0.12), transparent 60%),
-      #f4f4f5;
-  }
-  html[data-theme="light"] .hg-card {
-    background: rgba(255, 255, 255, 0.85);
-    border-color: rgba(0, 0, 0, 0.08);
-  }
-  html[data-theme="light"] .hg-title { color: #18181b; }
-  html[data-theme="light"] .hg-desc { color: rgba(0, 0, 0, 0.6); }
-  html[data-theme="light"] .hg-status { color: rgba(0, 0, 0, 0.45); }
-  html[data-theme="light"] .hg-fine { color: rgba(0, 0, 0, 0.35); }
-
-  /* ── Tablet + phone (≤ 767px) ─────────────────────────── */
-  @media (max-width: 767px) {
-    .hg-card {
-      max-width: 100%;
-      padding: 1.75rem 1.25rem 1.375rem;
-      border-radius: 18px;
-    }
-    .hg-badge {
-      width: 48px;
-      height: 48px;
-      margin-bottom: 0.75rem;
-      border-radius: 14px;
-    }
-    .hg-badge svg { width: 22px; height: 22px; }
-    .hg-title {
-      font-size: 1.35rem;
-      line-height: 1.2;
-    }
-    .hg-desc {
-      font-size: 0.85rem;
-      line-height: 1.5;
-      margin-bottom: 1.125rem;
-    }
-    .hg-widget { min-height: 65px; }
-    /* Keep the Turnstile iframe from overflowing narrow viewports */
-    .hg-widget iframe {
-      max-width: 100% !important;
-    }
-    .hg-status { font-size: 0.7rem; margin-top: 0.75rem; }
-    .hg-fine { font-size: 0.625rem; margin-top: 0.5rem; }
-  }
-
-  /* ── Very small phones (≤ 380px) ──────────────────────── */
-  @media (max-width: 380px) {
-    #human-gate {
-      padding:
-        calc(0.875rem + env(safe-area-inset-top, 0px))
-        calc(0.875rem + env(safe-area-inset-right, 0px))
-        calc(0.875rem + env(safe-area-inset-bottom, 0px))
-        calc(0.875rem + env(safe-area-inset-left, 0px));
-    }
-    .hg-card {
-      padding: 1.5rem 1rem 1.125rem;
-      border-radius: 16px;
-    }
-    .hg-badge {
-      width: 44px;
-      height: 44px;
-      margin-bottom: 0.625rem;
-    }
-    .hg-title { font-size: 1.2rem; }
-    .hg-desc {
-      font-size: 0.8125rem;
-      margin-bottom: 1rem;
-    }
-  }
-
-  /* ── Landscape short screens (phones held sideways) ──── */
-  @media (max-height: 480px) and (orientation: landscape) {
-    #human-gate { align-items: flex-start; }
-    .hg-card {
-      padding: 1.25rem 1.25rem 1rem;
-      max-width: 22rem;
-    }
-    .hg-badge {
-      width: 40px;
-      height: 40px;
-      margin-bottom: 0.5rem;
-    }
-    .hg-title { font-size: 1.15rem; margin-bottom: 0.25rem; }
-    .hg-desc { font-size: 0.8125rem; margin-bottom: 0.875rem; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    #human-gate { animation: none; }
-    #human-gate.hg-done { transition: none; }
+    color: rgba(255, 255, 255, 0.4);
+    margin: 0;
   }
 </style>

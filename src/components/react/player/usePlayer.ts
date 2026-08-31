@@ -142,6 +142,7 @@ export interface PlayerApi {
   updatePrefs: (patch: Partial<PlayerPrefs>) => void;
   toggleFullscreen: () => void;
   requestPip: () => void;
+  requestCast: () => void;
   /** Reveal the controls and restart the idle timer. */
   wake: () => void;
   /**
@@ -582,6 +583,19 @@ export function usePlayer({
     adapterRef.current?.requestPictureInPicture?.();
   }, []);
 
+  const requestCast = useCallback(() => {
+    try {
+      const video = document.querySelector('.fp-stage video, video') as any;
+      if (video) {
+        if (typeof video.webkitShowPlaybackTargetPicker === 'function') {
+          video.webkitShowPlaybackTargetPicker();
+        } else if (video.remote && typeof video.remote.prompt === 'function') {
+          video.remote.prompt().catch(() => {});
+        }
+      }
+    } catch {}
+  }, []);
+
   const thumbnailAt = useCallback(
     (seconds: number) => adapterRef.current?.thumbnailAt?.(seconds) ?? null,
     []
@@ -600,9 +614,22 @@ export function usePlayer({
 
   const exitFullscreen = useCallback(() => {
     setPseudoFs(false);
-    const doc = document as Document & { webkitExitFullscreen?: () => void };
-    if (document.fullscreenElement) void document.exitFullscreen?.();
-    else doc.webkitExitFullscreen?.();
+    const doc = document as Document & {
+      webkitExitFullscreen?: () => void;
+      mozCancelFullScreen?: () => void;
+      msExitFullscreen?: () => void;
+      webkitFullscreenElement?: Element | null;
+      mozFullScreenElement?: Element | null;
+      msFullscreenElement?: Element | null;
+    };
+    if (document.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement) {
+      try {
+        if (document.exitFullscreen) void document.exitFullscreen();
+        else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+        else if (doc.mozCancelFullScreen) doc.mozCancelFullScreen();
+        else if (doc.msExitFullscreen) doc.msExitFullscreen();
+      } catch {}
+    }
     try {
       screen.orientation?.unlock?.();
     } catch {
@@ -612,10 +639,18 @@ export function usePlayer({
 
   const enterFullscreen = useCallback(() => {
     const el = stageRef.current as
-      | (HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> | void })
+      | (HTMLDivElement & {
+          webkitRequestFullscreen?: () => Promise<void> | void;
+          mozRequestFullScreen?: () => Promise<void> | void;
+          msRequestFullscreen?: () => Promise<void> | void;
+        })
       | null;
     if (!el) return;
-    const request = el.requestFullscreen?.bind(el) ?? el.webkitRequestFullscreen?.bind(el);
+    const request =
+      el.requestFullscreen?.bind(el) ??
+      el.webkitRequestFullscreen?.bind(el) ??
+      el.mozRequestFullScreen?.bind(el) ??
+      el.msRequestFullscreen?.bind(el);
     if (!request) {
       // iOS Safari cannot fullscreen a <div>; cover the viewport ourselves so
       // the button still does what it says.
@@ -623,9 +658,14 @@ export function usePlayer({
       return;
     }
     try {
-      Promise.resolve(request())
-        .then(lockLandscape)
-        .catch(() => setPseudoFs(true));
+      const res = request();
+      if (res instanceof Promise) {
+        res
+          .then(lockLandscape)
+          .catch(() => setPseudoFs(true));
+      } else {
+        lockLandscape();
+      }
     } catch {
       setPseudoFs(true);
     }
@@ -639,23 +679,31 @@ export function usePlayer({
 
   useEffect(() => {
     const sync = () => {
-      const element = document.fullscreenElement;
+      const doc = document as Document & {
+        webkitFullscreenElement?: Element | null;
+        mozFullScreenElement?: Element | null;
+        msFullscreenElement?: Element | null;
+      };
+      const element =
+        document.fullscreenElement ??
+        doc.webkitFullscreenElement ??
+        doc.mozFullScreenElement ??
+        doc.msFullscreenElement;
       const stage = stageRef.current;
-      // ISOLATION: `document.fullscreenElement` is page-global. The detail pages
-      // carry other fullscreen-capable elements (the separate trailer <iframe>
-      // further down the page, an image viewer), and treating any of them as
-      // "the player is fullscreen" would resize our chrome for someone else's
-      // fullscreen. Only our own stage — or a descendant of it, which is how iOS
-      // reports a <video> in native fullscreen — counts.
+      // ISOLATION: `document.fullscreenElement` is page-global.
       const active = !!element && !!stage && (element === stage || stage.contains(element));
       setNativeFs(active);
       if (active) setPseudoFs(false);
     };
     document.addEventListener('fullscreenchange', sync);
     document.addEventListener('webkitfullscreenchange', sync);
+    document.addEventListener('mozfullscreenchange', sync);
+    document.addEventListener('MSFullscreenChange', sync);
     return () => {
       document.removeEventListener('fullscreenchange', sync);
       document.removeEventListener('webkitfullscreenchange', sync);
+      document.removeEventListener('mozfullscreenchange', sync);
+      document.removeEventListener('MSFullscreenChange', sync);
     };
   }, []);
 
@@ -863,6 +911,7 @@ export function usePlayer({
     updatePrefs,
     toggleFullscreen,
     requestPip,
+    requestCast,
     wake,
     holdChrome,
     thumbnailAt,

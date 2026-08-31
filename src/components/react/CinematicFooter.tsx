@@ -23,7 +23,7 @@ const navigation = {
         { name: "Netflix", href: "/netflix" },
         { name: "Prime Video", href: "/prime" },
         { name: "Apple TV+", href: "/appletv" },
-        { name: "Hotstar", href: "/hotstar" },
+        { name: "Anime", href: "/anime" },
       ],
     },
     {

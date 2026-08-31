@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 
 const testimonials: Testimonial[] = [
   {
-    text: "Finally a streaming hub that shows the real Top 10 across Netflix, Prime and Disney+ in one place. No more app-hopping to find what's trending.",
+    text: "Finally a streaming hub that shows the real Top 10 across Netflix, Prime Video and Apple TV+ in one place. No more app-hopping to find what's trending.",
     image: "https://randomuser.me/api/portraits/women/1.jpg",
     name: "Briana Patton",
     role: "Binge-watcher",

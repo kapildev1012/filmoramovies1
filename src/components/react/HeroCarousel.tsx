@@ -2,18 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { HeroSlide } from '../../lib/tmdb';
 import { OriginButton } from '../ui/origin-button';
 
-const SLIDE_MS = 3000; // 3 seconds per slide
+const SLIDE_MS = 4000; // 4 seconds per slide
 const MAX_GENRES = 3;  // keep the chip row on a single line
 
-/**
- * Build a width ladder for a TMDB backdrop URL.
- *
- * `buildHeroSlides` returns backdrops at a fixed `/w1280/`. TMDB exposes the
- * same still at several widths under the same path, so we can offer the browser
- * a choice instead of forcing the largest one on every device. Returns
- * undefined for anything that is not a recognisable TMDB w1280 URL, in which
- * case the plain `src` is used unchanged.
- */
 function backdropSrcSet(url: string): string | undefined {
   if (!url.includes('/w1280/')) return undefined;
   const widths = [780, 1280];
@@ -56,10 +47,6 @@ export default function HeroCarousel({ slides, label }: Props) {
   const paused = hoverPaused || userPaused;
   const autoplays = !reduceMotion && count > 1;
 
-  // Remaining time for the current slide. Tracked explicitly so that pausing
-  // (hover/focus/touch or the pause button) resumes where it left off — the
-  // progress bar freezes with `animation-play-state`, so a timer that restarted
-  // from scratch would drift out of sync with what the user sees.
   const remainingRef = useRef(SLIDE_MS);
   const startedAtRef = useRef(0);
 
@@ -88,16 +75,14 @@ export default function HeroCarousel({ slides, label }: Props) {
   const onTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
-    setHoverPaused(true); // don't advance while the user is interacting
+    setHoverPaused(true);
   };
   const onTouchEnd = (e: React.TouchEvent) => {
     setHoverPaused(false);
     if (touchStartX.current === null || touchStartY.current === null) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
-    // Only treat as a slide swipe when the gesture is clearly horizontal —
-    // otherwise a vertical scroll would accidentally change slides.
-    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
       (dx < 0 ? next : prev)();
     }
     touchStartX.current = null;
@@ -123,64 +108,56 @@ export default function HeroCarousel({ slides, label }: Props) {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      {/* Only mount the active and adjacent images. Absolutely positioned lazy
-          images all count as in-viewport, so mounting every slide fetched every
-          w1280 backdrop immediately. */}
+      {/* ── Background Stages ── */}
       <div className="nf-stage" aria-hidden="true">
         {slides.map((s, i) => {
           const shouldLoad = i === index || i === (index + 1) % count || i === (index - 1 + count) % count;
           const srcSet = s.backdropUrl ? backdropSrcSet(s.backdropUrl) : undefined;
           return (
-          <div key={s.id} className={`nf-bg ${i === index ? 'nf-bg--active' : ''}`}>
-            {s.backdropUrl && shouldLoad && (
-              <img
-                src={s.backdropUrl}
-                /* buildHeroSlides bakes w1280 into backdropUrl, so a phone was
-                   downloading a desktop-sized backdrop (up to ~230 kB each, and
-                   three slides are mounted at a time — the single largest item
-                   in a page's transfer). TMDB serves the same still at fixed
-                   widths, so hand the browser the ladder and let it pick. */
-                srcSet={srcSet}
-                sizes="100vw"
-                alt=""
-                className="nf-bg-img"
-                loading={i === index ? 'eager' : 'lazy'}
-                decoding="async"
-                fetchPriority={i === index ? 'high' : 'low'}
-              />
-            )}
-          </div>
+            <div key={s.id} className={`nf-bg ${i === index ? 'nf-bg--active' : ''}`}>
+              {s.backdropUrl && shouldLoad && (
+                <img
+                  src={s.backdropUrl}
+                  srcSet={srcSet}
+                  sizes="100vw"
+                  alt=""
+                  className="nf-bg-img"
+                  loading={i === index ? 'eager' : 'lazy'}
+                  decoding="async"
+                  fetchPriority={i === index ? 'high' : 'low'}
+                />
+              )}
+            </div>
           );
         })}
-        {/* Gradient overlays */}
+        {/* Cinema Vignette Gradients */}
         <div className="nf-grad-bottom" />
         <div className="nf-grad-left" />
         <div className="nf-grad-top" />
       </div>
 
-      {/* Content panel — remounted per slide so the staggered entrance replays.
-          `aria-live` announces the new slide for screen readers. */}
+      {/* ── Content Panel ── */}
       <div className="nf-content-wrap" aria-live="polite" aria-atomic="true">
         <div className="nf-content" key={slide.id}>
-          {/* Type + IMDb row */}
+          {/* Creative Meta Pill Row */}
           <div className="nf-meta">
             <span className="nf-type-badge">
-              {slide.mediaType === 'movie' ? '🎬 Movie' : '📺 Series'}
+              {slide.mediaType === 'movie' ? '🎬 Film' : '📺 Series'}
             </span>
             {slide.rating > 0 && (
               <span className="nf-imdb">
-                <span className="nf-imdb-lozenge">IMDb</span>
-                {slide.rating.toFixed(1)}
+                <span className="nf-imdb-lozenge">★</span>
+                <span>{slide.rating.toFixed(1)}</span>
               </span>
             )}
-            {slide.releaseYear && <span className="nf-pill">{slide.releaseYear}</span>}
-            {slide.runtime && <span className="nf-pill">{slide.runtime}</span>}
+            <span className="nf-pill font-mono">4K Ultra HD</span>
+            {slide.releaseYear && <span className="nf-pill font-mono">{slide.releaseYear}</span>}
           </div>
 
           {/* Title */}
           <h1 className="nf-title">{slide.title}</h1>
 
-          {/* Genre chips */}
+          {/* Genre Chips */}
           {genres.length > 0 && (
             <div className="nf-genres">
               {genres.map((g) => (
@@ -194,13 +171,11 @@ export default function HeroCarousel({ slides, label }: Props) {
             <p className="nf-overview">{slide.overview}</p>
           )}
 
-          {/* Primary action + watchlist. The animated control is intentionally
-              the only navigation CTA: the old desktop “More Info” button led to
-              the same place and read like a duplicate trailer action. */}
-          <div className="nf-actions flex flex-row gap-3 mt-4 items-center w-full max-w-[500px]">
+          {/* Primary CTA Buttons Row */}
+          <div className="nf-actions flex flex-row gap-3 items-center w-full max-w-[500px]">
             <OriginButton
               onClick={() => { window.location.href = slide.href; }}
-              className="flex-1 md:flex-none md:w-[240px] h-[48px] md:h-[55px] rounded-full !bg-black/60 backdrop-blur-3xl !border !border-white/20 text-white shadow-[0_0_15px_rgba(0,0,0,0.5)]"
+              className="flex-1 md:flex-none md:w-[240px] h-[48px] md:h-[55px] rounded-full !bg-white hover:!bg-neutral-200 !text-black font-black uppercase tracking-wider shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-2"
               aria-label={`Watch ${slide.title} now`}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -213,7 +188,7 @@ export default function HeroCarousel({ slides, label }: Props) {
         </div>
       </div>
 
-      {/* Bottom strip: counter + progress dots on the copy edge, controls opposite */}
+      {/* ── Bottom Control Strip & Animated Progress Indicator ── */}
       {count > 1 && (
         <div className={`nf-strip ${paused ? 'is-paused' : ''}`}>
           <div className="nf-strip-left">
@@ -247,7 +222,7 @@ export default function HeroCarousel({ slides, label }: Props) {
                 type="button"
                 className="nf-ctl"
                 onClick={() => setUserPaused((v) => !v)}
-                aria-label={userPaused ? 'Resume automatic slideshow' : 'Pause automatic slideshow'}
+                aria-label={userPaused ? 'Resume slideshow' : 'Pause slideshow'}
               >
                 {userPaused
                   ? <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.75a.75.75 0 0 1 1.18-.61l11 7.25a.75.75 0 0 1 0 1.22l-11 7.25A.75.75 0 0 1 7 19.25V4.75z"/></svg>
@@ -266,11 +241,11 @@ export default function HeroCarousel({ slides, label }: Props) {
 
       <style>{`
         @keyframes nf-fade-up {
-          from { opacity: 0; transform: translateY(20px); }
+          from { opacity: 0; transform: translateY(16px); }
           to   { opacity: 1; transform: translateY(0); }
         }
         @keyframes nf-kenburns {
-          from { transform: scale(1.06); }
+          from { transform: scale(1.05); }
           to   { transform: scale(1); }
         }
         @keyframes nf-progress {
@@ -278,10 +253,6 @@ export default function HeroCarousel({ slides, label }: Props) {
           to   { transform: scaleX(1); }
         }
 
-        /* ── Container ──
-           Grid instead of flex column: row 1 holds the copy (bottom-aligned,
-           so it grows upward), row 2 pins the control strip. Slide-to-slide
-           differences in title/overview height no longer shift the strip. */
         .nf-hero {
           position: relative;
           width: 100%;
@@ -292,36 +263,30 @@ export default function HeroCarousel({ slides, label }: Props) {
           overflow: hidden;
           background: #000;
           outline: none;
-          touch-action: pan-y; /* allow vertical scroll; we handle horizontal swipes */
+          touch-action: pan-y;
         }
         .nf-hero:focus-visible { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.6); }
+
         @media (max-width: 767px) {
           .nf-hero { min-height: 100svh; max-height: 100svh; }
-          /* Frame the subject's face/upper body on portrait screens */
-          .nf-bg-img { object-position: center 18%; }
-        }
-        /* Short landscape phones: a viewport-height hero leaves no room for the
-           copy, so let it size to content instead of clipping. */
-        @media (max-height: 520px) and (orientation: landscape) {
-          .nf-hero { min-height: 460px; max-height: none; }
+          .nf-bg-img { object-position: center 20% !important; }
         }
 
-        /* ── Backdrop ── */
         .nf-stage { position: absolute; inset: 0; }
-        .nf-bg { position: absolute; inset: 0; opacity: 0; transition: opacity 1s ease; will-change: opacity; }
+        .nf-bg { position: absolute; inset: 0; opacity: 0; transition: opacity 0.8s ease; will-change: opacity; }
         .nf-bg--active { opacity: 1; }
         .nf-bg-img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; display: block; }
-        .nf-bg--active .nf-bg-img { animation: nf-kenburns 6s ease-out forwards; }
+        .nf-bg--active .nf-bg-img { animation: nf-kenburns 5s ease-out forwards; }
 
-        /* Gradients — Netflix uses a heavy bottom+left vignette */
+        /* Pure OLED Black Cinema Vignette Overlays */
         .nf-grad-bottom {
           position: absolute; inset: 0;
           background: linear-gradient(
             to top,
             #000 0%,
-            rgba(0,0,0,0.9) 18%,
-            rgba(0,0,0,0.5) 45%,
-            rgba(0,0,0,0.1) 75%,
+            rgba(0,0,0,0.98) 22%,
+            rgba(0,0,0,0.7) 48%,
+            rgba(0,0,0,0.15) 75%,
             transparent 100%
           );
         }
@@ -330,29 +295,28 @@ export default function HeroCarousel({ slides, label }: Props) {
           background: linear-gradient(
             to right,
             rgba(0,0,0,0.85) 0%,
-            rgba(0,0,0,0.45) 35%,
-            transparent 65%
+            rgba(0,0,0,0.45) 40%,
+            transparent 75%
           );
         }
         .nf-grad-top {
-          position: absolute; top: 0; left: 0; right: 0; height: 120px;
-          background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
+          position: absolute; top: 0; left: 0; right: 0; height: 140px;
+          background: linear-gradient(to bottom, rgba(0,0,0,0.65), transparent);
         }
 
-        /* ── Content panel ── */
         .nf-content-wrap {
           position: relative;
           z-index: 2;
           align-self: end;
-          padding: 0 4% 1.75rem;
+          padding: 0 4% 1.5rem;
           width: 100%;
         }
         .nf-content { max-width: 680px; }
-        /* No strip to sit above (single-slide detail heroes) — restore the space */
         .nf-hero--single .nf-content-wrap { padding-bottom: 5rem; }
+
         @media (max-width: 767px) {
           .nf-content-wrap {
-            padding: 0 1.25rem 5rem;
+            padding: 0 1.25rem 4.5rem;
             text-align: left;
           }
           .nf-content {
@@ -361,81 +325,61 @@ export default function HeroCarousel({ slides, label }: Props) {
             flex-direction: column;
             align-items: flex-start;
           }
-          /* Single-slide hero has no strip, so it must clear the tab bar itself */
           .nf-hero--single .nf-content-wrap {
             padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 1rem);
           }
-          /* Centered text reads best over a taller bottom fade; drop the
-             left vignette which only helps left-aligned desktop copy. */
           .nf-grad-bottom {
             background: linear-gradient(
               to top,
               #000 0%,
-              rgba(0,0,0,0.96) 28%,
-              rgba(0,0,0,0.75) 55%,
-              rgba(0,0,0,0.2) 82%,
+              rgba(0,0,0,0.98) 28%,
+              rgba(0,0,0,0.8) 55%,
+              rgba(0,0,0,0.2) 80%,
               transparent 100%
             );
           }
-          .nf-grad-left {
-            display: block;
-            background: linear-gradient(
-              to right,
-              rgba(0,0,0,0.9) 0%,
-              rgba(0,0,0,0.5) 45%,
-              transparent 85%
-            );
-          }
         }
-
 
         /* Meta row */
         .nf-meta {
-          display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+          display: inline-flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
           margin-bottom: 0.625rem;
-          animation: nf-fade-up 0.5s ease backwards; animation-delay: 60ms;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          padding: 0.3rem 0.75rem;
+          border-radius: 999px;
+          animation: nf-fade-up 0.5s ease backwards;
         }
-        /* Plain text, no chip: the translucent box read as an empty block over
-           the artwork, especially where the backdrop behind it is already dark. */
         .nf-type-badge {
-          font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em;
-          color: rgba(255,255,255,0.85);
+          font-size: 0.6875rem; font-weight: 800; letter-spacing: 0.04em;
+          color: #fff;
           white-space: nowrap;
         }
         .nf-imdb {
-          display: inline-flex; align-items: center; gap: 0.35rem;
-          font-size: 0.875rem; font-weight: 700; color: #fff;
+          display: inline-flex; align-items: center; gap: 0.25rem;
+          font-size: 0.8125rem; font-weight: 800; color: #fff;
         }
         .nf-imdb-lozenge {
-          background: #f5c518; color: #000; font-weight: 900; font-size: 0.65rem;
-          padding: 0.1rem 0.3rem; border-radius: 3px; letter-spacing: 0.02em;
+          color: #facc15; font-weight: 900; font-size: 0.75rem;
         }
         .nf-pill {
-          font-size: 0.8125rem; color: rgba(255,255,255,0.65); font-weight: 500;
+          font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: 700;
         }
-        .nf-pill + .nf-pill::before { content: '·'; margin-right: 0.5rem; opacity: 0.4; }
-        .nf-imdb + .nf-pill::before,
-        .nf-type-badge + .nf-imdb::before,
-        .nf-type-badge + .nf-pill::before {
-          content: '';
-          display: inline-block;
-          width: 3px; height: 3px;
-          border-radius: 50%;
-          background: rgba(255,255,255,0.35);
-          margin-right: 0;
-          vertical-align: middle;
+        .nf-pill::before {
+          content: '·'; margin-right: 0.5rem; opacity: 0.4;
         }
 
-        /* Title — capped at two lines so a long name can't push the copy block
-           past the top of the hero. */
+        /* Title */
         .nf-title {
-          font-size: clamp(2.25rem, 4.5vw, 3.75rem);
-          font-weight: 700;
+          font-size: clamp(2rem, 5.5vw, 3.5rem);
+          font-weight: 900;
           line-height: 1.05;
-          letter-spacing: -0.025em;
+          letter-spacing: -0.03em;
           color: #fff;
-          margin: 0 0 0.75rem;
-          text-shadow: 0 2px 24px rgba(0,0,0,0.7);
+          margin: 0 0 0.5rem;
+          text-shadow: 0 4px 30px rgba(0,0,0,0.8);
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
@@ -443,176 +387,48 @@ export default function HeroCarousel({ slides, label }: Props) {
           animation: nf-fade-up 0.5s ease backwards; animation-delay: 80ms;
         }
 
-        .nf-overview {
-          font-size: 1.1rem; line-height: 1.45;
-          color: rgba(255,255,255,0.85); margin: 0 0 1.25rem;
-          display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-          text-shadow: 0 1px 8px rgba(0,0,0,0.8);
-          animation: nf-fade-up 0.5s ease backwards; animation-delay: 100ms;
-        }
-        @media (max-width: 767px) {
-          .nf-meta { 
-            justify-content: flex-start;
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            padding: 0.35rem 0.85rem;
-            border-radius: 99px;
-            margin-bottom: 0.75rem;
-          }
-          .nf-title { 
-            font-size: clamp(2rem, 8vw, 2.5rem); 
-            margin-bottom: 0.5rem; 
-            text-align: left; 
-            text-wrap: balance; 
-          }
-        }
-
         /* Genres */
         .nf-genres {
-          display: flex; gap: 0.375rem; margin-bottom: 0.75rem;
-          animation: nf-fade-up 0.5s ease backwards; animation-delay: 130ms;
+          display: flex; gap: 0.4rem; margin-bottom: 0.75rem; flex-wrap: wrap;
+          animation: nf-fade-up 0.5s ease backwards; animation-delay: 120ms;
         }
         .nf-genre {
-          font-size: 0.75rem; font-weight: 500;
-          color: rgba(255,255,255,0.65);
-          border-left: 2px solid rgba(255,255,255,0.3);
-          padding-left: 0.5rem;
+          font-size: 0.75rem; font-weight: 700;
+          color: rgba(255,255,255,0.85);
+          background: rgba(255,255,255,0.1);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          padding: 0.2rem 0.6rem;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.15);
           white-space: nowrap;
         }
-        .nf-genre:first-child { border-left: none; padding-left: 0; color: rgba(255,255,255,0.8); }
 
-        /* Overview — height reserved for the clamp so slides with a one-line
-           synopsis don't make the block jump against the ones with three. */
+        /* Overview */
         .nf-overview {
-          font-size: clamp(0.875rem, 1.4vw, 1rem);
-          line-height: 1.55;
-          color: rgba(255,255,255,0.78);
-          margin: 0 0 1.5rem;
+          font-size: 0.95rem;
+          line-height: 1.5;
+          color: rgba(255,255,255,0.8);
+          margin: 0 0 1.25rem;
           max-width: 560px;
-          min-height: calc(1.55em * 3);
           display: -webkit-box;
-          -webkit-line-clamp: 3;
+          -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
           animation: nf-fade-up 0.5s ease backwards; animation-delay: 160ms;
-        }
-        @media (max-width: 767px) {
-          .nf-overview {
-            -webkit-line-clamp: 4;
-            min-height: calc(1.4em * 3);
-            margin-bottom: 1.25rem;
-            font-size: 0.95rem;
-            line-height: 1.4;
-            text-align: left;
-            max-width: 100%;
-            margin-inline: 0;
-            color: rgba(255, 255, 255, 0.9);
-          }
-          /* Left aligned glassy chips for genres on mobile */
-          .nf-genres { justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.875rem; flex-wrap: wrap; }
-          .nf-genre {
-            border-left: none;
-            padding: 0.25rem 0.65rem;
-            color: rgba(255, 255, 255, 0.9);
-            background: rgba(255, 255, 255, 0.12);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border-radius: 6px;
-            font-size: 0.75rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-          }
-          .nf-genre:first-child { color: rgba(255, 255, 255, 0.9); padding: 0.25rem 0.65rem; }
-          .nf-genre:not(:first-child)::before { display: none; }
+          text-shadow: 0 2px 10px rgba(0,0,0,0.8);
         }
 
-        /* Actions: one clear, long primary button plus a compact list action. */
-        .nf-actions {
-          display: flex;
-          align-items: center;
-          gap: 0.875rem;
-          width: 100%;
-          animation: nf-fade-up 0.5s ease backwards;
-          animation-delay: 200ms;
-        }
-        /* Override the component's shadcn default width/padding utilities with
-           the hero's own sizing. The two-class selector is more specific than
-           Tailwind's single utility classes regardless of stylesheet order;
-           cn does not merge or dedupe conflicting utilities in this project. */
-        .nf-actions .nf-ihb {
-          width: min(240px, calc(100% - 58px));
-          height: 55px;
-          flex: 0 1 240px;
-          font-size: 1.0625rem;
-          color: #fff;
-        }
-        .nf-btn {
-          display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-          font-size: 1rem; font-weight: 700;
-          cursor: pointer; text-decoration: none;
-          transition: all 0.18s ease;
-          white-space: nowrap; line-height: 1;
-        }
-        .nf-btn--wl {
-          width: 50px; height: 50px;
-          padding: 0;
-          flex: 0 0 50px;
-          border-radius: 50%;
-          background: rgba(18,18,20,0.62);
-          color: rgba(255,255,255,0.88);
-          border: 1px solid rgba(255,255,255,0.34);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
-          box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-        }
-        .nf-btn--wl:hover {
-          border-color: #fff;
-          color: #fff;
-          transform: translateY(-2px);
-          background: rgba(35,35,38,0.78);
-        }
-        .nf-btn--wl--saved { border-color: #e82728; color: #ff5b5d; }
-        @media (max-width: 767px) {
-          .nf-actions {
-            justify-content: flex-start;
-            flex-wrap: nowrap;
-            max-width: 100%;
-            margin: 0;
-            gap: 0.75rem;
-          }
-          .nf-actions .nf-ihb {
-            width: auto;
-            min-width: 0;
-            height: 52px;
-            flex: 1 1 auto;
-            font-size: 0.9375rem;
-          }
-          .nf-btn--wl {
-            width: 52px; height: 52px;
-            flex-basis: 52px;
-          }
-        }
-        @media (max-width: 380px) {
-          .nf-actions { gap: 0.625rem; }
-          .nf-play-animated { height: 50px; font-size: 0.875rem; }
-          .nf-actions .nf-ihb { height: 50px; font-size: 0.875rem; }
-          .nf-btn--wl { width: 50px; height: 50px; flex-basis: 50px; }
-        }
-
-        /* ── Bottom strip ──
-           Aligned to the same 4% gutter as the copy: counter + progress dots on
-           the reading edge, transport controls on the opposite edge. */
+        /* Bottom Strip */
         .nf-strip {
           position: relative; z-index: 3;
           display: flex; align-items: center; justify-content: space-between;
           gap: 1rem;
-          padding: 0 4% 2.25rem;
+          padding: 0 4% 1.75rem;
         }
-        .nf-strip-left { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+        .nf-strip-left { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
         .nf-strip-right { display: flex; align-items: center; gap: 0.5rem; }
 
-        /* Slide counter */
         .nf-counter {
           font-size: 0.75rem; font-variant-numeric: tabular-nums;
           letter-spacing: 0.08em;
@@ -622,17 +438,15 @@ export default function HeroCarousel({ slides, label }: Props) {
         .nf-counter b { color: #fff; font-weight: 700; }
         .nf-counter i { font-style: normal; margin: 0 0.3rem; opacity: 0.5; }
 
-        /* Dots double as an autoplay progress bar for the active slide */
-        .nf-dots { display: flex; gap: 0.375rem; align-items: center; }
+        .nf-dots { display: flex; gap: 0.4rem; align-items: center; }
         .nf-dot {
           position: relative; overflow: hidden;
           width: 14px; height: 4px; border-radius: 999px; border: none;
           background: rgba(255,255,255,0.28); cursor: pointer; padding: 0;
           transition: width 0.35s ease, background 0.25s ease;
-          min-height: unset;
         }
         .nf-dot:hover { background: rgba(255,255,255,0.55); }
-        .nf-dot--active { width: 44px; background: rgba(255,255,255,0.3); }
+        .nf-dot--active { width: 36px; background: rgba(255,255,255,0.3); }
         .nf-dot-fill {
           position: absolute; inset: 0;
           background: #fff; border-radius: inherit;
@@ -640,36 +454,32 @@ export default function HeroCarousel({ slides, label }: Props) {
         }
         .nf-dot--active .nf-dot-fill { animation-name: nf-progress; animation-timing-function: linear; animation-fill-mode: forwards; }
         .nf-strip.is-paused .nf-dot--active .nf-dot-fill { animation-play-state: paused; }
-        /* Reduced motion / no autoplay: show the active dot filled, no sweep */
         .nf-dots--static .nf-dot--active .nf-dot-fill { animation: none; transform: scaleX(1); }
 
-        /* Transport controls */
         .nf-ctl {
-          width: 38px; height: 38px; border-radius: 50%;
+          width: 36px; height: 36px; border-radius: 50%;
           display: flex; align-items: center; justify-content: center;
           background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
           color: rgba(255,255,255,0.75); cursor: pointer;
           transition: all 0.18s ease;
-          min-height: unset;
         }
         .nf-ctl:hover { background: rgba(255,255,255,0.2); color: #fff; transform: scale(1.08); }
-        .nf-ctl:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
         @media (max-width: 767px) {
-          /* Align the indicator to the left to match the editorial layout */
           .nf-strip {
-            justify-content: flex-start;
-            padding: 0 1.25rem calc(72px + env(safe-area-inset-bottom, 0px));
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
           }
-          .nf-strip-left { gap: 0.625rem; }
-          .nf-strip-right { display: none; }
-          .nf-counter { display: none; }
-          .nf-dots { gap: 0.4rem; }
-          .nf-dot { width: 8px; height: 4px; border-radius: 999px; }
-          .nf-dot--active { width: 24px; border-radius: 999px; }
+          .nf-content-wrap {
+            padding: 0 1.25rem calc(68px + env(safe-area-inset-bottom, 0px) + 1.25rem) !important;
+          }
         }
 
-        /* Reduced motion */
         @media (prefers-reduced-motion: reduce) {
           .nf-bg { transition: none; }
           .nf-bg--active .nf-bg-img { animation: none; }
@@ -681,7 +491,6 @@ export default function HeroCarousel({ slides, label }: Props) {
   );
 }
 
-// Watchlist toggle button
 function WatchlistBtn({ id, mediaType, title, posterUrl }: {
   id: number; mediaType: 'movie' | 'tv'; title: string; posterUrl: string | null;
 }) {
@@ -700,27 +509,42 @@ function WatchlistBtn({ id, mediaType, title, posterUrl }: {
         id: number; mediaType: string; title: string; posterUrl: string | null; addedAt: string;
       }>;
       const idx = wl.findIndex((i) => i.id === id && i.mediaType === mediaType);
-      const next = idx >= 0
-        ? wl.filter((_, i) => i !== idx)
-        : [...wl, { id, mediaType, title, posterUrl, addedAt: new Date().toISOString() }];
-      localStorage.setItem('filmora_watchlist', JSON.stringify(next));
-      setSaved(idx < 0);
+      if (idx >= 0) {
+        const next = wl.filter((_, i) => i !== idx);
+        localStorage.setItem('filmora_watchlist', JSON.stringify(next));
+        setSaved(false);
+        fetch('/api/watchlist', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tmdbId: id, mediaType })
+        }).catch(() => {});
+      } else {
+        const next = [...wl, { id, mediaType, title, posterUrl, addedAt: new Date().toISOString() }];
+        localStorage.setItem('filmora_watchlist', JSON.stringify(next));
+        setSaved(true);
+        fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tmdbId: id, mediaType, title, posterPath: posterUrl })
+        }).catch(() => {});
+      }
+      window.dispatchEvent(new CustomEvent('filmora:watchlist-updated'));
     } catch {}
   };
 
   return (
     <OriginButton
       onClick={toggle}
-      className={`shrink-0 h-[48px] w-[48px] md:h-[55px] md:w-[55px] rounded-full backdrop-blur-2xl text-white ${saved ? 'bg-white/20 border-white/40' : 'bg-black/30 border-white/10'}`}
+      className={`shrink-0 h-[48px] w-[48px] md:h-[55px] md:w-[55px] rounded-full backdrop-blur-2xl text-white ${saved ? 'bg-white/20 border-white/40' : 'bg-black/40 border-white/20'}`}
       style={{ paddingLeft: 0, paddingRight: 0 }}
       aria-pressed={saved}
       aria-label={saved ? `Remove ${title} from watchlist` : `Add ${title} to watchlist`}
       title={saved ? 'Remove from Watchlist' : 'Add to Watchlist'}
     >
       {saved ? (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
       ) : (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
       )}
     </OriginButton>
   );

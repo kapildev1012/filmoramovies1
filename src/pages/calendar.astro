@@ -1,0 +1,89 @@
+---
+// src/pages/calendar.astro — Release Schedule & Airing Calendar
+import Layout from '../layouts/Layout.astro';
+import ReleaseCalendar from '../components/react/ReleaseCalendar';
+import { getUpcomingMovies, getOnAirSeries, getNowPlayingMovies, getPopularSeries } from '../lib/tmdb';
+
+let movies: any[] = [];
+let series: any[] = [];
+
+try {
+  const [upcomingRes, nowPlayingRes, onAirRes, popularSeriesRes] = await Promise.all([
+    getUpcomingMovies(1).catch(() => ({ results: [] })),
+    getNowPlayingMovies(1).catch(() => ({ results: [] })),
+    getOnAirSeries(1).catch(() => ({ results: [] })),
+    getPopularSeries(1).catch(() => ({ results: [] })),
+  ]);
+
+  const allRawMovies = [...(upcomingRes.results || []), ...(nowPlayingRes.results || [])];
+  const seenMovieIds = new Set<number>();
+  movies = allRawMovies
+    .filter((m) => {
+      if (!m.id || seenMovieIds.has(m.id)) return false;
+      seenMovieIds.add(m.id);
+      return m.poster_path || m.backdrop_path;
+    })
+    .map((m) => ({
+      id: m.id,
+      title: m.title || 'Untitled Movie',
+      type: 'movie' as const,
+      date: m.release_date || '',
+      posterUrl: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : '',
+      backdropUrl: m.backdrop_path ? `https://image.tmdb.org/t/p/w1280${m.backdrop_path}` : (m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : ''),
+      overview: m.overview || '',
+      rating: m.vote_average || 0,
+    }));
+
+  const allRawSeries = [...(onAirRes.results || []), ...(popularSeriesRes.results || [])];
+  const seenSeriesIds = new Set<number>();
+  series = allRawSeries
+    .filter((s) => {
+      if (!s.id || seenSeriesIds.has(s.id)) return false;
+      seenSeriesIds.add(s.id);
+      return s.poster_path || s.backdrop_path;
+    })
+    .map((s) => ({
+      id: s.id,
+      title: s.name || 'Untitled Series',
+      type: 'tv' as const,
+      date: s.first_air_date || '',
+      posterUrl: s.poster_path ? `https://image.tmdb.org/t/p/w500${s.poster_path}` : '',
+      backdropUrl: s.backdrop_path ? `https://image.tmdb.org/t/p/w1280${s.backdrop_path}` : (s.poster_path ? `https://image.tmdb.org/t/p/w500${s.poster_path}` : ''),
+      overview: s.overview || '',
+      rating: s.vote_average || 0,
+    }));
+} catch (e) {
+  console.error('Failed to load calendar data:', e);
+}
+---
+
+<Layout title="Release Calendar &amp; Schedule — Filmora" description="Track theatrical movie premieres, daily TV show episodes, and digital streaming debuts scheduled this week.">
+  <div class="container mx-auto px-4 py-8 md:py-12 space-y-10">
+    {/* Header */}
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div class="space-y-2">
+        <h1 class="text-3xl md:text-5xl font-black tracking-tight text-white">
+          Release Calendar
+        </h1>
+        <p class="text-sm md:text-base text-white/60 max-w-xl leading-relaxed">
+          Track theatrical premieres, weekly episode airings, and digital streaming debuts across all major platforms.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <a
+          href="/watchlist"
+          class="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all border border-white/10 flex items-center gap-2 active:scale-95"
+        >
+          <svg class="w-4 h-4 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+          <span>My Watchlist</span>
+        </a>
+      </div>
+    </div>
+
+    {/* Interactive Calendar Island */}
+    <ReleaseCalendar client:load movies={movies} series={series} />
+  </div>
+</Layout>

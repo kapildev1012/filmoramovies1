@@ -235,11 +235,43 @@ export default function CardFanCarousel({ cards }: CardFanCarouselProps) {
     };
   }, [centerIndex, paginated, total, visibleMap]);
 
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+    }
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+
+    // Horizontal swipe threshold (minimum 35px, more horizontal than vertical)
+    if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (deltaX < 0) {
+        cycle('right'); // swipe left -> next card
+      } else {
+        cycle('left');  // swipe right -> prev card
+      }
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
+
   if (total === 0) return null;
 
   return (
     <div className="fan-carousel" aria-label="Cast carousel">
-      <div ref={containerRef} className="fan-stage">
+      <div 
+        ref={containerRef} 
+        className="fan-stage"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         {cards.map((card, index) => {
           const content = (
             <>
@@ -284,43 +316,45 @@ export default function CardFanCarousel({ cards }: CardFanCarouselProps) {
         .fan-stage {
           position: relative; display: flex; align-items: flex-start; justify-content: center;
           width: 100%; height: clamp(21rem, 46vw, 40rem); max-width: 80rem; margin-inline: auto;
+          touch-action: pan-y;
         }
         .fan-card {
           position: absolute; display: block; width: clamp(8.5rem, 18vw, 15rem);
           aspect-ratio: 2 / 3; overflow: hidden; border-radius: clamp(0.75rem, 1.4vw, 1.125rem);
           background: var(--color-surface-2); color: #fff; opacity: 0;
-          border: 1px solid rgba(255,255,255,0.12);
-          box-shadow: 0 18px 50px rgba(0,0,0,0.42); transform-origin: center bottom;
+          border: 1px solid rgba(255,255,255,0.14);
+          box-shadow: 0 18px 50px rgba(0,0,0,0.45); transform-origin: center bottom;
           text-decoration: none; will-change: transform, opacity;
         }
         .fan-card img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; }
-        .fan-card-scrim { position: absolute; inset: 42% 0 0; background: linear-gradient(to top, rgba(0,0,0,0.92), transparent); }
-        .fan-card-copy { position: absolute; z-index: 2; inset: auto 0 0; display: flex; flex-direction: column; gap: 0.15rem; padding: 1rem 0.7rem 0.75rem; text-align: center; }
-        .fan-card-copy b { overflow: hidden; font-size: 0.8125rem; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-        .fan-card-copy small { overflow: hidden; color: rgba(255,255,255,0.68); font-size: 0.65rem; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
-        .fan-controls { position: relative; z-index: 30; display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: -1rem; }
+        .fan-card-scrim { position: absolute; inset: 35% 0 0; background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 60%, transparent 100%); }
+        .fan-card-copy { position: absolute; z-index: 2; inset: auto 0 0; display: flex; flex-direction: column; gap: 0.2rem; padding: 1.1rem 0.75rem 0.85rem; text-align: center; }
+        .fan-card-copy b { overflow: hidden; font-size: 0.8125rem; font-weight: 800; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+        .fan-card-copy small { overflow: hidden; color: rgba(255,255,255,0.75); font-size: 0.6875rem; font-weight: 500; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+        .fan-controls { position: relative; z-index: 30; display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: -0.75rem; }
         .fan-controls button {
-          position: relative; display: grid; place-items: center; width: 3rem; height: 3rem; padding: 0;
-          border: 1px solid color-mix(in srgb, var(--color-text) 13%, transparent); border-radius: 999px;
-          background: color-mix(in srgb, var(--color-text) 6%, transparent); color: var(--color-text-2);
+          position: relative; display: grid; place-items: center; width: 3rem; height: 3rem; min-width: 44px; min-height: 44px; padding: 0;
+          border: 1px solid color-mix(in srgb, var(--color-text) 16%, transparent); border-radius: 999px;
+          background: color-mix(in srgb, var(--color-text) 8%, transparent); color: var(--color-text-2);
           -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); cursor: pointer;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.18); transition: color 180ms ease, border-color 180ms ease, transform 180ms ease;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.22); transition: color 180ms ease, border-color 180ms ease, transform 180ms ease;
         }
         .fan-controls button:hover { color: var(--color-text); border-color: color-mix(in srgb, var(--color-text) 30%, transparent); transform: scale(1.06); }
+        .fan-controls button:active { transform: scale(0.92); }
         .fan-controls button:focus-visible { outline: 2px solid var(--color-accent-from); outline-offset: 3px; }
         .fan-controls svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
         .fan-dots { display: flex; align-items: center; justify-content: center; gap: 0.4rem; max-width: min(48vw, 18rem); flex-wrap: wrap; }
         .fan-dots span { width: 0.38rem; height: 0.38rem; border-radius: 50%; background: color-mix(in srgb, var(--color-text) 18%, transparent); transition: transform 250ms ease, background 250ms ease; }
         .fan-dots span.is-active { background: var(--color-text); transform: scale(1.45); }
         @media (max-width: 639px) {
-          .fan-carousel { width: calc(100% + 2rem); margin-inline: -1rem; padding-top: 1.5rem; }
-          .fan-stage { height: 21rem; }
-          .fan-card { width: 9.5rem; border-radius: 0.8rem; }
-          .fan-card-copy { padding: 0.8rem 0.45rem 0.55rem; }
-          .fan-card-copy b { font-size: 0.7rem; }
-          .fan-card-copy small { font-size: 0.58rem; }
-          .fan-controls { margin-top: -0.25rem; gap: 0.7rem; }
-          .fan-controls button { width: 2.75rem; height: 2.75rem; }
+          .fan-carousel { width: calc(100% + 2rem); margin-inline: -1rem; padding-top: 1.25rem; }
+          .fan-stage { height: 19.5rem; }
+          .fan-card { width: 9rem; border-radius: 0.85rem; }
+          .fan-card-copy { padding: 0.85rem 0.5rem 0.6rem; }
+          .fan-card-copy b { font-size: 0.75rem; }
+          .fan-card-copy small { font-size: 0.625rem; }
+          .fan-controls { margin-top: -0.25rem; gap: 0.75rem; }
+          .fan-controls button { width: 2.75rem; height: 2.75rem; min-width: 44px; min-height: 44px; }
           .fan-dots { max-width: 44vw; gap: 0.3rem; }
           .fan-dots span { width: 0.32rem; height: 0.32rem; }
         }

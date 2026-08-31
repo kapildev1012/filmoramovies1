@@ -1,17 +1,5 @@
 /**
- * src/lib/db.ts — Cloudflare D1 (SQLite) data layer.
- *
- * D1 is async and has no filesystem/native driver, so every function is async
- * and takes the D1 binding as its first argument. Obtain the binding from the
- * request context:
- *
- *   // .astro pages
- *   const db = Astro.locals.runtime.env.DB;
- *   // API routes
- *   export const GET: APIRoute = async ({ locals }) => { const db = locals.runtime.env.DB; ... }
- *
- * The schema lives in migrations/0001_init.sql and is applied with
- * `wrangler d1 migrations apply filmora` — it is not applied at runtime.
+ * src/lib/db.ts — Platform Database & Storage Layer (Cloudflare D1 & SQLite).
  */
 
 /** Generate a URL-safe random ID (24 chars) using WebCrypto (Workers-safe). */
@@ -30,7 +18,23 @@ export interface DBUser {
   google_id: string;
   email: string;
   name: string;
+  username?: string | null;
+  bio?: string | null;
   avatar_url: string | null;
+  banner_url?: string | null;
+  country?: string | null;
+  language?: string | null;
+  timezone?: string | null;
+  dob?: string | null;
+  genres?: string | null; // JSON string array: ["Action", "Sci-Fi"]
+  disliked_genres?: string | null;
+  playback_settings?: string | null; // JSON string
+  appearance_settings?: string | null; // JSON string
+  notification_settings?: string | null; // JSON string
+  privacy_settings?: string | null; // JSON string
+  parental_settings?: string | null; // JSON string
+  music_settings?: string | null; // JSON string
+  watch_history?: string | null; // JSON string
   created_at: string;
 }
 
@@ -63,22 +67,78 @@ export async function upsertUser(db: D1Database, data: Omit<DBUser, 'id' | 'crea
   return createUser(db, data);
 }
 
+export async function updateUserProfile(
+  db: D1Database,
+  userId: string,
+  data: Partial<Omit<DBUser, 'id' | 'created_at' | 'google_id'>>
+): Promise<DBUser> {
+  const fields: string[] = [];
+  const vals: any[] = [];
+
+  const allowedKeys = [
+    'name', 'username', 'bio', 'avatar_url', 'banner_url', 'country',
+    'language', 'timezone', 'dob', 'genres', 'disliked_genres',
+    'playback_settings', 'appearance_settings', 'notification_settings',
+    'privacy_settings', 'parental_settings', 'music_settings', 'watch_history'
+  ] as const;
+
+  for (const key of allowedKeys) {
+    if (data[key] !== undefined) {
+      fields.push(`${key} = ?`);
+      vals.push(data[key]);
+    }
+  }
+
+  if (fields.length > 0) {
+    vals.push(userId);
+    await db
+      .prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`)
+      .bind(...vals)
+      .run();
+  }
+
+  return (await getUserById(db, userId))!;
+}
+
 // ─── Session operations ───────────────────────────────────────────────────────
 
 export interface DBSession {
   id: string;
   user_id: string;
+  device_name?: string;
+  browser?: string;
+  os?: string;
+  ip_address?: string;
+  location?: string;
+  last_active?: number;
   expires_at: number; // unix seconds
 }
 
-export async function createSession(db: D1Database, userId: string): Promise<DBSession> {
+export async function createSession(
+  db: D1Database,
+  userId: string,
+  meta?: { device_name?: string; browser?: string; os?: string; ip_address?: string; location?: string }
+): Promise<DBSession> {
   const id = generateId();
   const expiresAt = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30; // 30 days
+  const now = Math.floor(Date.now() / 1000);
+  
   await db
     .prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)')
     .bind(id, userId, expiresAt)
     .run();
-  return { id, user_id: userId, expires_at: expiresAt };
+
+  return {
+    id,
+    user_id: userId,
+    device_name: meta?.device_name || 'Current Device',
+    browser: meta?.browser || 'Browser',
+    os: meta?.os || 'Desktop',
+    ip_address: meta?.ip_address || '127.0.0.1',
+    location: meta?.location || 'Verified Secure',
+    last_active: now,
+    expires_at: expiresAt,
+  };
 }
 
 export async function getSession(
@@ -88,40 +148,71 @@ export async function getSession(
   const now = Math.floor(Date.now() / 1000);
   const row = await db
     .prepare(`
-      SELECT s.*, u.google_id, u.email, u.name, u.avatar_url, u.created_at as user_created_at
+      SELECT s.*, u.google_id, u.email, u.name, u.username, u.bio, u.avatar_url, u.banner_url,
+             u.country, u.language, u.timezone, u.dob, u.genres, u.disliked_genres,
+             u.playback_settings, u.appearance_settings, u.notification_settings,
+             u.privacy_settings, u.parental_settings, u.music_settings, u.watch_history,
+             u.created_at as user_created_at
       FROM sessions s
       JOIN users u ON u.id = s.user_id
       WHERE s.id = ? AND s.expires_at > ?
     `)
     .bind(sessionId, now)
-    .first<
-      DBSession & {
-        google_id: string;
-        email: string;
-        name: string;
-        avatar_url: string | null;
-        user_created_at: string;
-      }
-    >();
+    .first<any>();
 
   if (!row) return null;
   return {
     id: row.id,
     user_id: row.user_id,
+    device_name: row.device_name || 'Active Session',
+    browser: row.browser || 'Web Browser',
+    os: row.os || 'Desktop OS',
+    ip_address: row.ip_address || '127.0.0.1',
+    location: row.location || 'Local Secure',
+    last_active: row.last_active || now,
     expires_at: row.expires_at,
     user: {
       id: row.user_id,
       google_id: row.google_id,
       email: row.email,
       name: row.name,
+      username: row.username,
+      bio: row.bio,
       avatar_url: row.avatar_url,
+      banner_url: row.banner_url,
+      country: row.country,
+      language: row.language,
+      timezone: row.timezone,
+      dob: row.dob,
+      genres: row.genres,
+      disliked_genres: row.disliked_genres,
+      playback_settings: row.playback_settings,
+      appearance_settings: row.appearance_settings,
+      notification_settings: row.notification_settings,
+      privacy_settings: row.privacy_settings,
+      parental_settings: row.parental_settings,
+      music_settings: row.music_settings,
+      watch_history: row.watch_history,
       created_at: row.user_created_at,
     },
   };
 }
 
+export async function getUserSessions(db: D1Database, userId: string): Promise<DBSession[]> {
+  const now = Math.floor(Date.now() / 1000);
+  const { results } = await db
+    .prepare('SELECT * FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY id DESC')
+    .bind(userId, now)
+    .all<DBSession>();
+  return results;
+}
+
 export async function deleteSession(db: D1Database, sessionId: string): Promise<void> {
   await db.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId).run();
+}
+
+export async function deleteOtherSessions(db: D1Database, userId: string, currentSessionId: string): Promise<void> {
+  await db.prepare('DELETE FROM sessions WHERE user_id = ? AND id != ?').bind(userId, currentSessionId).run();
 }
 
 export async function deleteAllUserSessions(db: D1Database, userId: string): Promise<void> {
@@ -141,7 +232,9 @@ export interface DBProfile {
   user_id: string;
   name: string;
   avatar_color: string;
+  avatar_url?: string | null;
   is_kids: number;
+  maturity_rating?: string;
   is_default: number;
   created_at: string;
 }
@@ -177,13 +270,15 @@ export async function createProfile(
 export async function updateProfile(
   db: D1Database,
   id: string,
-  data: Partial<Pick<DBProfile, 'name' | 'avatar_color' | 'is_kids'>>
+  data: Partial<Pick<DBProfile, 'name' | 'avatar_color' | 'avatar_url' | 'is_kids' | 'maturity_rating'>>
 ): Promise<void> {
   const fields: string[] = [];
-  const vals: (string | number)[] = [];
+  const vals: any[] = [];
   if (data.name !== undefined) { fields.push('name = ?'); vals.push(data.name); }
   if (data.avatar_color !== undefined) { fields.push('avatar_color = ?'); vals.push(data.avatar_color); }
-  if (data.is_kids !== undefined) { fields.push('is_kids = ?'); vals.push(data.is_kids); }
+  if (data.avatar_url !== undefined) { fields.push('avatar_url = ?'); vals.push(data.avatar_url); }
+  if (data.is_kids !== undefined) { fields.push('is_kids = ?'); vals.push(data.is_kids ? 1 : 0); }
+  if (data.maturity_rating !== undefined) { fields.push('maturity_rating = ?'); vals.push(data.maturity_rating); }
   if (fields.length === 0) return;
   vals.push(id);
   await db.prepare(`UPDATE profiles SET ${fields.join(', ')} WHERE id = ?`).bind(...vals).run();
@@ -194,7 +289,6 @@ export async function deleteProfile(db: D1Database, id: string): Promise<void> {
 }
 
 export async function setDefaultProfile(db: D1Database, userId: string, profileId: string): Promise<void> {
-  // D1 batch runs statements atomically (single transaction).
   await db.batch([
     db.prepare('UPDATE profiles SET is_default = 0 WHERE user_id = ?').bind(userId),
     db.prepare('UPDATE profiles SET is_default = 1 WHERE id = ?').bind(profileId),

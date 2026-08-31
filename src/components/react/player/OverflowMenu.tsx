@@ -14,6 +14,7 @@
 
 import {
   BrightnessIcon,
+  CastIcon,
   FitIcon,
   GestureIcon,
   NextIcon,
@@ -34,6 +35,7 @@ interface OverflowMenuProps {
   autoplayNext: boolean;
   showAutoplayNext: boolean;
   canPip: boolean;
+  onCast?: () => void;
   /**
    * Playback speed, present only when the bar could not keep its own speed
    * button (compact widths). Passing `null` means the inline button is visible
@@ -66,6 +68,7 @@ export default function OverflowMenu({
   autoplayNext,
   showAutoplayNext,
   canPip,
+  onCast,
   speed = null,
   episodeNav = null,
   onBrightness,
@@ -247,6 +250,17 @@ export default function OverflowMenu({
                 <PipIcon size={18} />
               </span>
               <span className="fp-menu-label">{t('pip')}</span>
+            </button>
+          </li>
+        )}
+
+        {onCast && (
+          <li>
+            <button type="button" role="menuitem" className="fp-menu-row" onClick={onCast}>
+              <span className="fp-menu-check" aria-hidden="true">
+                <CastIcon size={18} />
+              </span>
+              <span className="fp-menu-label">Cast to TV (AirPlay / Screen)</span>
             </button>
           </li>
         )}

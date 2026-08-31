@@ -114,8 +114,13 @@ const EDGE_RETRIES = 1;
 const PROVIDER_ORIGIN: Readonly<Record<string, string>> = {
   vidsrcin: 'https://vidsrc.in',
   vidlink: 'https://vidlink.pro',
-  videasy: 'https://player.videasy.net',
+  autoembed: 'https://player.autoembed.cc',
+  superembed: 'https://multiembed.mov',
   vidfast: 'https://vidfast.pro',
+  videasy: 'https://player.videasy.net',
+  smashystream: 'https://embed.smashystream.com',
+  embedsu: 'https://embed.su',
+  vidsrcicu: 'https://vidsrc.icu',
   nexstream: 'https://www.vidking.net',
 };
 
@@ -131,10 +136,15 @@ export const KNOWN_SERVERS: ReadonlyArray<{
   confidence: 'title' | 'live';
 }> = [
   { id: 'vidsrcin', name: 'VidSrc IN (Hindi)', label: 'Server 1', confidence: 'title' },
-  { id: 'vidlink', name: 'VidLink', label: 'Server 2', confidence: 'title' },
-  { id: 'vidfast', name: 'VidFast', label: 'Server 3', confidence: 'live' },
-  { id: 'videasy', name: 'Videasy', label: 'Server 4', confidence: 'live' },
-  { id: 'nexstream', name: 'NexStream', label: 'Server 5', confidence: 'title' },
+  { id: 'vidlink', name: 'VidLink (Fast HD)', label: 'Server 2', confidence: 'title' },
+  { id: 'autoembed', name: 'AutoEmbed (Multi-Sub)', label: 'Server 3', confidence: 'live' },
+  { id: 'superembed', name: 'SuperEmbed (Multi)', label: 'Server 4', confidence: 'live' },
+  { id: 'vidfast', name: 'VidFast', label: 'Server 5', confidence: 'live' },
+  { id: 'videasy', name: 'Videasy', label: 'Server 6', confidence: 'live' },
+  { id: 'smashystream', name: 'SmashyStream', label: 'Server 7', confidence: 'live' },
+  { id: 'embedsu', name: 'Embed.su (4K/1080p)', label: 'Server 8', confidence: 'live' },
+  { id: 'vidsrcicu', name: 'VidSrc ICU (Global)', label: 'Server 9', confidence: 'live' },
+  { id: 'nexstream', name: 'NexStream (VidKing)', label: 'Server 10', confidence: 'title' },
 ];
 
 /** A list with no evidence attached. Never empty, so the UI always has options. */

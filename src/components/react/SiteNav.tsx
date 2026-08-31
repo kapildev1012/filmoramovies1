@@ -19,9 +19,9 @@ const NAV_LINKS: NavLink[] = [
   { href: "/",         label: "Home"      },
   { href: "/movies",   label: "Movies"    },
   { href: "/series",   label: "Series"    },
-  { href: "/anime",    label: "Anime"     },
-  { href: "/netflix",  label: "Netflix"   },
-  { href: "/prime",    label: "Prime"     },
+  { href: "/music",    label: "Music"     },
+  { href: "/channels", label: "Live TV"   },
+  { href: "/calendar", label: "Calendar"  },
   { href: "/search",   label: "Search"    },
 ];
 
@@ -60,21 +60,62 @@ function FilmoraLogo({ size = 28 }: { size?: number }) {
 }
 
 export default function SiteNav({ user, pathname = "/" }: Props) {
+  const [currentUser, setCurrentUser] = useState<{ name: string; avatar_url: string | null } | null>(user ?? null);
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [theme, setTheme] = useState<string>("dark");
   const [watchlistCount, setWatchlistCount] = useState(0);
+
+  // Sync user state from props, localStorage, and API
+  useEffect(() => {
+    if (user) {
+      setCurrentUser(user);
+      try { localStorage.setItem("filmora_user", JSON.stringify(user)); } catch {}
+    } else {
+      try {
+        const cached = localStorage.getItem("filmora_user");
+        if (cached) {
+          setCurrentUser(JSON.parse(cached));
+        }
+      } catch {}
+
+      // Asynchronously verify with backend session
+      fetch("/api/user/profile")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.user) {
+            const u = { name: data.user.name, avatar_url: data.user.avatar_url };
+            setCurrentUser(u);
+            try { localStorage.setItem("filmora_user", JSON.stringify(u)); } catch {}
+          } else {
+            setCurrentUser(null);
+            try { localStorage.removeItem("filmora_user"); } catch {}
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user]);
+
+  // Listen for live user auth events (login, logout, avatar updates)
+  useEffect(() => {
+    const onUserUpdated = (e: any) => {
+      if (e?.detail) {
+        setCurrentUser(e.detail);
+        try { localStorage.setItem("filmora_user", JSON.stringify(e.detail)); } catch {}
+      } else {
+        setCurrentUser(null);
+        try { localStorage.removeItem("filmora_user"); } catch {}
+      }
+    };
+    window.addEventListener("filmora:user-updated", onUserUpdated as any);
+    return () => window.removeEventListener("filmora:user-updated", onUserUpdated as any);
+  }, []);
 
   // Sync pathname on client for Astro SPA transitions
   const [currentPath, setCurrentPath] = useState(pathname);
 
   useEffect(() => {
     setCurrentPath(window.location.pathname);
-    // astro:page-load only fires once the new document has been fetched and
-    // swapped, so highlighting the pill there left the navbar looking frozen for
-    // the whole navigation. astro:before-preparation fires synchronously when the
-    // navigation starts, so the highlight moves the instant the link is clicked
-    // and page-load then just confirms it (and covers back/forward).
     const onStart = (e: Event) => {
       const to = (e as CustomEvent & { to?: URL }).to;
       if (to?.pathname) setCurrentPath(to.pathname);
@@ -394,7 +435,7 @@ export default function SiteNav({ user, pathname = "/" }: Props) {
             </motion.button>
 
             {/* Auth: avatar or Sign in CTA — desktop only */}
-            {user ? (
+            {currentUser ? (
               <motion.a
                 href="/profile"
                 aria-label="Your profile"
@@ -414,10 +455,10 @@ export default function SiteNav({ user, pathname = "/" }: Props) {
                 }}
                 className="sitenav-avatar"
               >
-                {user.avatar_url ? (
+                {currentUser.avatar_url ? (
                   <img
-                    src={user.avatar_url}
-                    alt={user.name}
+                    src={currentUser.avatar_url}
+                    alt={currentUser.name}
                     width={32}
                     height={32}
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
@@ -434,7 +475,7 @@ export default function SiteNav({ user, pathname = "/" }: Props) {
                     fontWeight: 700,
                     color: "#fff",
                   }}>
-                    {user.name.charAt(0).toUpperCase()}
+                    {currentUser.name.charAt(0).toUpperCase()}
                   </span>
                 )}
               </motion.a>
@@ -571,9 +612,9 @@ export default function SiteNav({ user, pathname = "/" }: Props) {
               </span>
             </motion.div>
 
-            {/* Nav links — animated TextRoll slide-in menu */}
+            {/* Nav links — animated TextRoll slide-in menu (Calendar excluded on mobile) */}
             <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.15rem", marginBottom: "1.5rem" }}>
-              {NAV_LINKS.map((link, i) => {
+              {NAV_LINKS.filter((l) => l.href !== "/calendar").map((link, i) => {
                 const active = isActive(link.href, currentPath);
                 return (
                   <motion.li
@@ -625,7 +666,7 @@ export default function SiteNav({ user, pathname = "/" }: Props) {
               }}
             >
               {/* Sign in / profile */}
-              {user ? (
+              {currentUser ? (
                 <a
                   href="/profile"
                   onClick={() => setIsOpen(false)}
@@ -644,7 +685,7 @@ export default function SiteNav({ user, pathname = "/" }: Props) {
                   }}
                 >
                   <User size={18} />
-                  {user.name}
+                  {currentUser.name}
                 </a>
               ) : (
                 <a

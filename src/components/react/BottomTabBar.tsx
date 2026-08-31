@@ -52,25 +52,34 @@ const IconWatchlist = ({ filled }: { filled?: boolean }) => (
   </svg>
 );
 
-const IconProfile = ({ filled }: { filled?: boolean }) => (
+const IconChannels = ({ filled }: { filled?: boolean }) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? 0 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="12" cy="8" r="4" />
-    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+    <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
+    <polyline points="17 2 12 7 7 2" />
+  </svg>
+);
+
+const IconMusic = ({ filled }: { filled?: boolean }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? 0 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M9 18V5l12-2v13" />
+    <circle cx="6" cy="18" r="3" fill={filled ? "currentColor" : "none"} />
+    <circle cx="18" cy="16" r="3" fill={filled ? "currentColor" : "none"} />
   </svg>
 );
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
 const TABS: Tab[] = [
-  { href: "/",         label: "Home",    icon: <IconHome />,      iconActive: <IconHome filled />,      match: (p) => p === "/" },
-  { href: "/movies",   label: "Movies",  icon: <IconMovies />,    iconActive: <IconMovies filled />,    match: (p) => p.startsWith("/movies") || p.startsWith("/series") || p.startsWith("/anime") },
-  { href: "/search",   label: "Search",  icon: <IconSearch />,    iconActive: <IconSearch filled />,    match: (p) => p.startsWith("/search") },
-  { href: "/watchlist",label: "My List", icon: <IconWatchlist />, iconActive: <IconWatchlist filled />, match: (p) => p.startsWith("/watchlist") },
-  { href: "/profile",  label: "Profile", icon: <IconProfile />,   iconActive: <IconProfile filled />,   match: (p) => p.startsWith("/profile") || p.startsWith("/login") },
+  { href: "/",          label: "Home",     icon: <IconHome />,       iconActive: <IconHome filled />,       match: (p) => p === "/" },
+  { href: "/movies",    label: "Movies",   icon: <IconMovies />,     iconActive: <IconMovies filled />,     match: (p) => p.startsWith("/movies") || p.startsWith("/series") || p.startsWith("/anime") },
+  { href: "/music",     label: "Music",    icon: <IconMusic />,      iconActive: <IconMusic filled />,      match: (p) => p.startsWith("/music") },
+  { href: "/channels",  label: "Live TV",  icon: <IconChannels />,   iconActive: <IconChannels filled />,   match: (p) => p.startsWith("/channels") },
+  { href: "/search",    label: "Search",   icon: <IconSearch />,     iconActive: <IconSearch filled />,     match: (p) => p.startsWith("/search") },
+  { href: "/watchlist", label: "My List",  icon: <IconWatchlist />,  iconActive: <IconWatchlist filled />,  match: (p) => p.startsWith("/watchlist") },
 ];
 
 /** Tabs whose HTML the edge caches (see PUBLIC_PAGE in src/middleware.ts). */
-const PREFETCHABLE = new Set(["/", "/movies", "/search"]);
+const PREFETCHABLE = new Set(["/", "/movies", "/music", "/search"]);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 

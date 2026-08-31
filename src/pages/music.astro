@@ -1,0 +1,14 @@
+---
+// music.astro — Filmora Music & OST Lounge (Spotify & Cinema Audio Station)
+import Layout from '../layouts/Layout.astro';
+import MusicCustomizerStation from '../components/react/music/MusicCustomizerStation';
+---
+
+<Layout
+  title="Music & OST Lounge — Spotify & 4K Cinema Soundtracks"
+  description="Stream official Spotify Top 50 hits, Hans Zimmer cinema film scores, 24/7 Lo-Fi study beats, and customize your personal audio visualizer on Filmora."
+>
+  <main class="min-h-screen bg-black text-white pt-4 pb-20">
+    <MusicCustomizerStation client:load />
+  </main>
+</Layout>
