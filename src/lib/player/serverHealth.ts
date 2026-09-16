@@ -84,11 +84,11 @@ export interface HealthTarget {
 // The product requirement is that selection finishes reliably and quickly.
 // Edge and reachability run concurrently.
 /** Total wall-clock budget for one selection pass. */
-export const SELECTION_BUDGET_MS = 1500;
+export const SELECTION_BUDGET_MS = 1000;
 /** Deadline handed to /api/embed/servers for its own parallel probe pass. */
-const EDGE_BUDGET_MS = 1350;
+const EDGE_BUDGET_MS = 900;
 /** Per-provider budget for the client-side reachability probe. */
-const REACHABILITY_BUDGET_MS = 900;
+const REACHABILITY_BUDGET_MS = 850;
 /**
  * How long a health result stays usable.
  */

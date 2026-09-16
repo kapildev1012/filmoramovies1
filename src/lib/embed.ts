@@ -600,7 +600,7 @@ const CONFIDENCE_RANK: Record<ProbeConfidence, number> = { title: 0, live: 1 };
  * so the next request (the client's revalidation, ~45s later, or a second viewer)
  * gets the full picture for free.
  */
-export const DEFAULT_PROBE_DEADLINE_MS = 1400;
+export const DEFAULT_PROBE_DEADLINE_MS = 900;
 
 export interface AvailabilityOptions {
   /** Wall-clock budget for the whole parallel pass. Clamped to 200–4000ms. */
