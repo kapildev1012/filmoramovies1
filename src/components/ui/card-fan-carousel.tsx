@@ -265,54 +265,212 @@ export default function CardFanCarousel({ cards }: CardFanCarouselProps) {
   if (total === 0) return null;
 
   return (
-    <div className="fan-carousel" aria-label="Cast carousel">
-      <div 
-        ref={containerRef} 
-        className="fan-stage"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
-        {cards.map((card, index) => {
-          const content = (
-            <>
-              <img src={card.imgUrl} alt={card.alt ?? `Cast member ${index + 1}`} loading="lazy" />
-              <span className="fan-card-scrim" aria-hidden="true" />
-              {(card.alt || card.subtitle) && (
-                <span className="fan-card-copy">
-                  {card.alt && <b>{card.alt}</b>}
-                  {card.subtitle && <small>{card.subtitle}</small>}
-                </span>
-              )}
-            </>
-          );
-          return card.linkUrl ? (
-            <a key={`${card.imgUrl}-${index}`} className="fan-card" href={card.linkUrl} aria-label={card.alt}>{content}</a>
-          ) : (
-            <div key={`${card.imgUrl}-${index}`} className="fan-card">{content}</div>
-          );
-        })}
+    <div className="cast-wrapper" aria-label="Cast gallery">
+      {/* ── Mobile Cast Track (<768px) ── */}
+      <div className="mobile-cast-container">
+        <div className="mobile-cast-hint">
+          <span className="mobile-cast-dot" />
+          <span>Swipe to explore cast ({total})</span>
+          <svg className="mobile-cast-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
+        </div>
+
+        <div className="mobile-cast-track">
+          {cards.map((card, index) => {
+            const cardInner = (
+              <>
+                <img
+                  src={card.imgUrl}
+                  alt={card.alt ?? `Cast member ${index + 1}`}
+                  loading="lazy"
+                  className="mobile-cast-img"
+                />
+                <span className="mobile-cast-scrim" aria-hidden="true" />
+                <div className="mobile-cast-info">
+                  {card.alt && <b className="mobile-cast-name">{card.alt}</b>}
+                  {card.subtitle && <small className="mobile-cast-char">{card.subtitle}</small>}
+                </div>
+              </>
+            );
+
+            return card.linkUrl ? (
+              <a
+                key={`mob-${card.imgUrl}-${index}`}
+                href={card.linkUrl}
+                className="mobile-cast-card"
+                aria-label={card.alt}
+              >
+                {cardInner}
+              </a>
+            ) : (
+              <div key={`mob-${card.imgUrl}-${index}`} className="mobile-cast-card">
+                {cardInner}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {paginated && (
-        <div className="fan-controls">
-          <button type="button" onClick={() => cycle('left')} aria-label="Previous cast member">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-          </button>
-          <div className="fan-dots" aria-hidden="true">
-            {cards.map((_, index) => <span key={index} className={index === centerIndex ? 'is-active' : ''} />)}
-          </div>
-          <button type="button" onClick={() => cycle('right')} aria-label="Next cast member">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
-          </button>
+      {/* ── Desktop / Tablet 3D Fan Carousel (>=768px) ── */}
+      <div className="fan-carousel-desktop">
+        <div 
+          ref={containerRef} 
+          className="fan-stage"
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          {cards.map((card, index) => {
+            const content = (
+              <>
+                <img src={card.imgUrl} alt={card.alt ?? `Cast member ${index + 1}`} loading="lazy" />
+                <span className="fan-card-scrim" aria-hidden="true" />
+                {(card.alt || card.subtitle) && (
+                  <span className="fan-card-copy">
+                    {card.alt && <b>{card.alt}</b>}
+                    {card.subtitle && <small>{card.subtitle}</small>}
+                  </span>
+                )}
+              </>
+            );
+            return card.linkUrl ? (
+              <a key={`${card.imgUrl}-${index}`} className="fan-card" href={card.linkUrl} aria-label={card.alt}>{content}</a>
+            ) : (
+              <div key={`${card.imgUrl}-${index}`} className="fan-card">{content}</div>
+            );
+          })}
         </div>
-      )}
+
+        {paginated && (
+          <div className="fan-controls">
+            <button type="button" onClick={() => cycle('left')} aria-label="Previous cast member">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+            <div className="fan-dots" aria-hidden="true">
+              {cards.map((_, index) => <span key={index} className={index === centerIndex ? 'is-active' : ''} />)}
+            </div>
+            <button type="button" onClick={() => cycle('right')} aria-label="Next cast member">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+          </div>
+        )}
+      </div>
 
       <style>{`
-        /* The top padding is headroom, not decoration: a hovered card lifts by
-           2.4rem and scales 1.075, and with overflow hidden (which is what stops
-           the fanned-out cards widening the page) that lift was sliced off the
-           top of the photo. */
-        .fan-carousel { width: 100%; padding: clamp(2.25rem, 4vw, 3.75rem) 0 1rem; overflow: hidden; }
+        .cast-wrapper { width: 100%; position: relative; }
+
+        /* ── Mobile Cast Styles (<768px) ── */
+        .mobile-cast-container {
+          display: none;
+          width: calc(100% + 2rem);
+          margin-inline: -1rem;
+          padding: 0.25rem 0 1rem;
+        }
+        .mobile-cast-hint {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          padding: 0 1.25rem 0.65rem;
+          font-size: 0.6875rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          color: rgba(216, 180, 254, 0.8);
+        }
+        .mobile-cast-dot {
+          width: 0.38rem;
+          height: 0.38rem;
+          border-radius: 50%;
+          background: #a855f7;
+          box-shadow: 0 0 8px #a855f7;
+        }
+        .mobile-cast-arrow {
+          width: 0.85rem;
+          height: 0.85rem;
+          color: #c084fc;
+        }
+        .mobile-cast-track {
+          display: flex;
+          gap: 0.85rem;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          padding: 0.25rem 1.25rem 0.75rem;
+          scrollbar-width: none;
+        }
+        .mobile-cast-track::-webkit-scrollbar {
+          display: none;
+        }
+        .mobile-cast-card {
+          flex: 0 0 7.5rem;
+          aspect-ratio: 2 / 3;
+          position: relative;
+          border-radius: 1rem;
+          overflow: hidden;
+          background: #0d0a17;
+          border: 1px solid rgba(168, 85, 247, 0.28);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+          scroll-snap-align: start;
+          text-decoration: none;
+          display: block;
+          transition: transform 180ms ease, border-color 180ms ease;
+        }
+        .mobile-cast-card:active {
+          transform: scale(0.96);
+          border-color: rgba(168, 85, 247, 0.6);
+        }
+        .mobile-cast-img {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+        .mobile-cast-scrim {
+          position: absolute;
+          inset: 35% 0 0;
+          background: linear-gradient(to top, rgba(3, 2, 7, 0.98) 0%, rgba(3, 2, 7, 0.7) 50%, transparent 100%);
+          pointer-events: none;
+        }
+        .mobile-cast-info {
+          position: absolute;
+          z-index: 2;
+          inset: auto 0 0;
+          padding: 0.65rem 0.55rem 0.55rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.15rem;
+          text-align: left;
+        }
+        .mobile-cast-name {
+          color: #ffffff;
+          font-size: 0.75rem;
+          font-weight: 800;
+          line-height: 1.25;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+        }
+        .mobile-cast-char {
+          color: #d8b4fe;
+          font-size: 0.65rem;
+          font-weight: 600;
+          line-height: 1.25;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+        }
+
+        /* ── Desktop 3D Carousel (>=768px) ── */
+        .fan-carousel-desktop {
+          display: block;
+          width: 100%;
+          padding: clamp(2.25rem, 4vw, 3.75rem) 0 1rem;
+          overflow: hidden;
+        }
         .fan-stage {
           position: relative; display: flex; align-items: flex-start; justify-content: center;
           width: 100%; height: clamp(21rem, 46vw, 40rem); max-width: 80rem; margin-inline: auto;
@@ -346,17 +504,11 @@ export default function CardFanCarousel({ cards }: CardFanCarouselProps) {
         .fan-dots { display: flex; align-items: center; justify-content: center; gap: 0.4rem; max-width: min(48vw, 18rem); flex-wrap: wrap; }
         .fan-dots span { width: 0.38rem; height: 0.38rem; border-radius: 50%; background: color-mix(in srgb, var(--color-text) 18%, transparent); transition: transform 250ms ease, background 250ms ease; }
         .fan-dots span.is-active { background: var(--color-text); transform: scale(1.45); }
-        @media (max-width: 639px) {
-          .fan-carousel { width: calc(100% + 2rem); margin-inline: -1rem; padding-top: 1.25rem; }
-          .fan-stage { height: 19.5rem; }
-          .fan-card { width: 9rem; border-radius: 0.85rem; }
-          .fan-card-copy { padding: 0.85rem 0.5rem 0.6rem; }
-          .fan-card-copy b { font-size: 0.75rem; }
-          .fan-card-copy small { font-size: 0.625rem; }
-          .fan-controls { margin-top: -0.25rem; gap: 0.75rem; }
-          .fan-controls button { width: 2.75rem; height: 2.75rem; min-width: 44px; min-height: 44px; }
-          .fan-dots { max-width: 44vw; gap: 0.3rem; }
-          .fan-dots span { width: 0.32rem; height: 0.32rem; }
+
+        /* ── Responsive Switching (<768px vs >=768px) ── */
+        @media (max-width: 767px) {
+          .mobile-cast-container { display: block; }
+          .fan-carousel-desktop { display: none; }
         }
       `}</style>
     </div>

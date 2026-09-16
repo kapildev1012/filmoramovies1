@@ -24,7 +24,8 @@
 // be either unreadable or unhittable.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckIcon, CloseIcon } from './Icons';
+import { CastIcon, CheckIcon, CloseIcon } from './Icons';
+import CastModal from './CastModal';
 import type { EngineId } from '../../../lib/player/types';
 import type { PlayerT } from '../../../lib/player/strings';
 
@@ -110,6 +111,7 @@ export default function SourceBar({
 }: SourceBarProps) {
   const compact = useCompactViewport();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [castOpen, setCastOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const visibleEngines = compact ? available : available.filter((id) => id !== 'youtube');
@@ -218,27 +220,39 @@ export default function SourceBar({
 
           {compact ? (
             <div className="flex flex-col gap-2 w-full">
-              <button
-                ref={triggerRef}
-                type="button"
-                className="fp-pill fp-server-trigger is-active w-fit"
-                aria-expanded={sheetOpen}
-                onClick={() => setSheetOpen((open) => !open)}
-              >
-                {active && (active.verified || active.live || active.online) && (
-                  <span className="fp-pill-dot" aria-hidden="true" />
-                )}
-                <span className="fp-server-trigger-name">
-                  {active?.name ?? (checking ? t('loading') : t('chooseServer'))}
-                </span>
-                {active?.badge ? (
-                  <span className="fp-quality-badge">{active.badge}</span>
-                ) : active?.qualityLabel ? (
-                  <span className="fp-quality-badge">{active.qualityLabel}</span>
-                ) : null}
-                {isAuto && <span className="fp-server-trigger-auto">{t('auto')}</span>}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`pointer-events-none ml-1 transition-transform ${sheetOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  ref={triggerRef}
+                  type="button"
+                  className="fp-pill fp-server-trigger is-active w-fit"
+                  aria-expanded={sheetOpen}
+                  onClick={() => setSheetOpen((open) => !open)}
+                >
+                  {active && (active.verified || active.live || active.online) && (
+                    <span className="fp-pill-dot" aria-hidden="true" />
+                  )}
+                  <span className="fp-server-trigger-name">
+                    {active?.name ?? (checking ? t('loading') : t('chooseServer'))}
+                  </span>
+                  {active?.badge ? (
+                    <span className="fp-quality-badge">{active.badge}</span>
+                  ) : active?.qualityLabel ? (
+                    <span className="fp-quality-badge">{active.qualityLabel}</span>
+                  ) : null}
+                  {isAuto && <span className="fp-server-trigger-auto">{t('auto')}</span>}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`pointer-events-none ml-1 transition-transform ${sheetOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCastOpen(true)}
+                  className="fp-pill fp-pill-cast flex items-center gap-1.5"
+                  title="Cast to Smart TV / AirPlay"
+                >
+                  <CastIcon size={14} />
+                  <span>Cast</span>
+                </button>
+              </div>
 
               {sheetOpen && (
                 <div className="flex flex-wrap gap-2 w-full animate-in fade-in slide-in-from-top-1">
@@ -326,10 +340,25 @@ export default function SourceBar({
                   {showAll ? 'Working Only' : `+${servers.length - workingServers.length} More`}
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setCastOpen(true)}
+                className="fp-pill fp-pill-cast flex items-center gap-1.5"
+                title="Cast to Smart TV / AirPlay"
+              >
+                <CastIcon size={14} />
+                <span>Cast to TV</span>
+              </button>
             </>
           )}
         </div>
       )}
+
+      <CastModal
+        isOpen={castOpen}
+        onClose={() => setCastOpen(false)}
+        title={active ? `Playing on ${active.name}` : 'Filmora Player'}
+      />
     </div>
   );
 }
