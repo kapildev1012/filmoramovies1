@@ -61,16 +61,38 @@ export interface ServerQuality {
  * renditions for different titles; option 1 is a usable approximation.
  */
 export const SERVER_QUALITY: Readonly<Record<string, ServerQuality>> = {
-  vidsrcin: { maxHeight: null, bitrateKbps: null },
-  vidlink: { maxHeight: null, bitrateKbps: null },
-  autoembed: { maxHeight: null, bitrateKbps: null },
-  superembed: { maxHeight: null, bitrateKbps: null },
-  vidfast: { maxHeight: null, bitrateKbps: null },
-  videasy: { maxHeight: null, bitrateKbps: null },
-  smashystream: { maxHeight: null, bitrateKbps: null },
-  embedsu: { maxHeight: null, bitrateKbps: null },
-  vidsrcicu: { maxHeight: null, bitrateKbps: null },
-  nexstream: { maxHeight: null, bitrateKbps: null },
+  vidcore: { maxHeight: 1080, bitrateKbps: null, label: '1080p' },
+  vidrock: { maxHeight: 1080, bitrateKbps: null, label: '1080p' },
+  vidzee: { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  videasy: { maxHeight: 1080, bitrateKbps: null, label: '1080p' },
+  mov2day: { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  peachify: { maxHeight: 1080, bitrateKbps: null, label: 'Multi-Audio' },
+  '111movies': { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  toustream: { maxHeight: 1080, bitrateKbps: null, label: 'Ad-Free' },
+  airflix: { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  vidsrc_embed: { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  vidfast: { maxHeight: 1080, bitrateKbps: null, label: 'Fast HD' },
+  vidsync: { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  vidlux: { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  vidking: { maxHeight: 1080, bitrateKbps: null, label: '1080p' },
+  mapple: { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  rive: { maxHeight: 1080, bitrateKbps: null, label: 'Ad-Free' },
+  fmovies: { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  streamxtv: { maxHeight: 1080, bitrateKbps: null, label: 'StreamX' },
+  hexa: { maxHeight: 1080, bitrateKbps: null, label: 'Ultra-Fast' },
+  twoembed: { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  vidsrcin: { maxHeight: 1080, bitrateKbps: null, label: 'Hindi/Reg' },
+  vidlink: { maxHeight: 1080, bitrateKbps: null, label: 'Fast HD' },
+  autoembed: { maxHeight: 1080, bitrateKbps: null, label: 'Multi-Sub' },
+  superembed: { maxHeight: 1080, bitrateKbps: null, label: 'Multi' },
+  embedsu: { maxHeight: 2160, bitrateKbps: null, label: '4K/1080p' },
+  vidsrcicu: { maxHeight: 1080, bitrateKbps: null, label: 'Global' },
+  nexstream: { maxHeight: 1080, bitrateKbps: null, label: '1080p' },
+  smashystream: { maxHeight: 1080, bitrateKbps: null, label: 'HD' },
+  megaplay: { maxHeight: 1080, bitrateKbps: null, label: 'Anime' },
+  vidnest_anime: { maxHeight: 1080, bitrateKbps: null, label: 'Anime' },
+  vidnest_animepahe: { maxHeight: 1080, bitrateKbps: null, label: 'AnimePahe' },
+  tryembed: { maxHeight: 1080, bitrateKbps: null, label: 'Anime' },
 };
 
 /** Quality for a server id, always defined so callers need no null checks. */
@@ -78,42 +100,105 @@ export function qualityFor(id: string): ServerQuality {
   return SERVER_QUALITY[id] ?? { maxHeight: null, bitrateKbps: null };
 }
 
-// ─── Curated provider preference (ad-cleanliness + reliability) ────────────────
-// This is the one editorial signal in the file, and it is deliberately labelled
-// as such. It is NOT a measurement — it encodes two things the player can never
-// probe from a datacenter IP and must not invent per title:
-//   1. how ad-intrusive each provider's OWN cross-origin player is (pop-ups,
-//      redirect tabs, overlay banners), and
-//   2. how reliably that provider actually starts a stream in a real browser.
-// It is the default order "Auto" trusts before any first-party evidence (a
-// confirmed play or a recorded failure) exists — which is exactly what lets the
-// automatic pick land on a clean, working server in well under a second without
-// waiting for the (advisory, often-throttled) probe to answer.
-//
-// LOWER = preferred. Maintainer-curated and safe to re-tune as providers change:
-//   vidlink, vidfast — leanest players, sandbox-friendly, the fewest pop-ups.
-//   videasy          — reliable, a little heavier.
-//   nexstream        — plays, but the heaviest ad wrapper of the four.
-// Unknown ids fall to PREFERENCE_MAX so a provider we have not vetted never
-// outranks a vetted one just by being unlisted.
+/** Curated server preference specifically tuned for TV Webseries */
+export const SERIES_PROVIDER_PREFERENCE: Readonly<Record<string, number>> = {
+  vidcore: 0,      // #1 for webseries on StreamXTV, fast episode load & complete catalog
+  videasy: 1,      // Native episode selector & auto-next support
+  vidlink: 2,      // Fast HD, reliable TV seasons
+  toustream: 3,    // Ad-Free clean stream for series
+  rive: 4,         // Ad-Free stream
+  peachify: 5,     // Multi-audio & dubs for foreign/international series
+  streamxtv: 6,    // StreamX official embed
+  vidrock: 7,      // High speed EU mirror
+  vidfast: 8,      // AutoPlay and next button support
+  vidking: 9,      // Full series episode selector
+  vidsync: 10,     // Synchronized episodes
+  vidsrcin: 11,    // Best for Indian & Hindi series
+  autoembed: 12,   // Great for multi-language subtitles
+  airflix: 13,     // Fast mirror
+  hexa: 14,        // Ultra-fast player
+  '111movies': 15, // Broad series catalog
+  mov2day: 16,     // CDN fallback
+  vidzee: 17,      // Desktop HD
+  vidlux: 18,
+  mapple: 19,
+  embedsu: 20,
+  vidsrc_embed: 21,
+  superembed: 22,
+  nexstream: 23,
+  twoembed: 24,
+  fmovies: 25,
+  vidsrcicu: 26,
+  smashystream: 27,
+  megaplay: 28,
+  vidnest_anime: 29,
+  vidnest_animepahe: 30,
+  tryembed: 31,
+};
+
 export const PROVIDER_PREFERENCE: Readonly<Record<string, number>> = {
-  vidsrcin: 0,
-  vidlink: 1,
-  autoembed: 2,
-  superembed: 3,
-  vidfast: 4,
-  videasy: 5,
-  smashystream: 6,
-  embedsu: 7,
-  vidsrcicu: 8,
-  nexstream: 9,
+  vidlink: 0,
+  vidcore: 1,
+  videasy: 2,
+  toustream: 3,
+  rive: 4,
+  streamxtv: 5,
+  peachify: 6,
+  vidfast: 7,
+  embedsu: 8,
+  hexa: 9,
+  vidsrcin: 10,
+  autoembed: 11,
+  vidrock: 12,
+  airflix: 13,
+  '111movies': 14,
+  mov2day: 15,
+  vidking: 16,
+  vidzee: 17,
+  vidsync: 18,
+  vidlux: 19,
+  mapple: 20,
+  superembed: 21,
+  vidsrc_embed: 22,
+  nexstream: 23,
+  twoembed: 24,
+  fmovies: 25,
+  vidsrcicu: 26,
+  smashystream: 27,
+  megaplay: 28,
+  vidnest_anime: 29,
+  vidnest_animepahe: 30,
+  tryembed: 31,
 };
 
 const PREFERENCE_MAX = 99;
 
 /** Curated preference for a server id (lower = cleaner/more reliable). */
-export function preferenceRank(id: string): number {
+export function preferenceRank(id: string, isSeries = false): number {
+  if (isSeries) {
+    return SERIES_PROVIDER_PREFERENCE[id] ?? PREFERENCE_MAX;
+  }
   return PROVIDER_PREFERENCE[id] ?? PREFERENCE_MAX;
+}
+
+const SERIES_BEST_KEY_PREFIX = 'filmora_series_best:';
+
+/** Get the server that previously succeeded for this specific webseries */
+export function getSeriesBestServer(seriesId: number | string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(`${SERIES_BEST_KEY_PREFIX}${seriesId}`) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Record the winning server for this specific webseries across all its episodes */
+export function saveSeriesBestServer(seriesId: number | string, serverId: string): void {
+  if (typeof window === 'undefined' || !seriesId || !serverId) return;
+  try {
+    localStorage.setItem(`${SERIES_BEST_KEY_PREFIX}${seriesId}`, serverId);
+  } catch {}
 }
 
 /** Badge text for a server, or null when we genuinely do not know. */
@@ -321,6 +406,12 @@ export interface RankOptions {
    * this exact episode is not a candidate, whatever its resolution.
    */
   tried?: ReadonlySet<string>;
+  /** True when selecting for a TV series / webseries */
+  isSeries?: boolean;
+  /** Series TMDB id for per-series best server memory lookup */
+  seriesId?: number | string | null;
+  /** True when title is an anime */
+  isAnime?: boolean;
 }
 
 // ─── Weighted scoring ─────────────────────────────────────────────────────────
@@ -446,9 +537,10 @@ function uptimeScore(server: RankableServer, health: HealthLedger, now: number):
 }
 
 /** Curated preference as 1…0 (cleanest provider = 1). */
-function preferenceScore(id: string): number {
-  const rank = preferenceRank(id);
-  const known = Object.keys(PROVIDER_PREFERENCE).length;
+function preferenceScore(id: string, isSeries = false): number {
+  const rank = preferenceRank(id, isSeries);
+  const map = isSeries ? SERIES_PROVIDER_PREFERENCE : PROVIDER_PREFERENCE;
+  const known = Object.keys(map).length;
   if (rank >= PREFERENCE_MAX) return 0;
   return Math.max(0, 1 - rank / Math.max(1, known - 1));
 }
@@ -488,6 +580,10 @@ export function scoreServer(
   const health = options.health ?? {};
   const tried = options.tried ?? new Set<string>();
   const now = options.now ?? Date.now();
+  const isSeries = !!options.isSeries;
+  const seriesId = options.seriesId ?? null;
+  const isAnime = !!options.isAnime;
+  const bestForSeries = (isSeries && seriesId) ? getSeriesBestServer(seriesId) : null;
 
   const breakdown: ScoreBreakdown = {
     playback: playbackScore(server),
@@ -496,12 +592,24 @@ export function scoreServer(
     buffering: bufferingScore(server, health),
     reliability: reliabilityScore(server, health),
     uptime: uptimeScore(server, health, now),
-    preference: preferenceScore(server.id),
+    preference: preferenceScore(server.id, isSeries),
   };
 
   let total = 0;
   for (const key of Object.keys(SCORE_WEIGHTS) as (keyof ScoreBreakdown)[]) {
     total += breakdown[key] * SCORE_WEIGHTS[key];
+  }
+
+  // Major preference boost for the server that already successfully streamed this exact webseries
+  if (bestForSeries && server.id === bestForSeries) {
+    total += 35;
+  }
+
+  const isAnimeServer = server.id === 'megaplay' || server.id === 'vidnest_anime' || server.id === 'vidnest_animepahe' || server.id === 'tryembed';
+  if (!isAnime && isAnimeServer) {
+    total -= 1000;
+  } else if (isAnime && isAnimeServer) {
+    total += 25;
   }
 
   const isTried = tried.has(server.id);
@@ -513,7 +621,7 @@ export function scoreServer(
     id: server.id,
     total: Math.round(total * 100) / 100,
     breakdown,
-    excluded: isTried || isUnreachable,
+    excluded: isTried || isUnreachable || (!isAnime && isAnimeServer),
   };
 }
 
@@ -544,10 +652,13 @@ export function rankServers<T extends RankableServer>(
 ): RankedServer<T>[] {
   const health = options.health ?? {};
   const tried = options.tried ?? new Set<string>();
+  const isSeries = options.isSeries;
+  const seriesId = options.seriesId;
+  const isAnime = options.isAnime;
   const now = Date.now();
   const order = new Map(servers.map((s, index) => [s.id, index]));
   const scores = new Map(
-    servers.map((s) => [s.id, scoreServer(s, { health, tried, now })] as const)
+    servers.map((s) => [s.id, scoreServer(s, { health, tried, isSeries, seriesId, isAnime, now })] as const)
   );
 
   const sorted = [...servers].sort((a, b) => {

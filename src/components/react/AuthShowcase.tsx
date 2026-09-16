@@ -275,7 +275,7 @@ function AuthForm({ error: initialError }: { error?: string | null }) {
             onClick={() => { setAuthMethod('otp'); setErrorMsg(null); }}
             className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               authMethod === 'otp'
-                ? 'bg-gradient-to-r from-purple-600 via-rose-600 to-amber-600 text-white shadow-lg'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 border border-purple-400/30'
                 : 'text-white/60 hover:text-white'
             }`}
           >
@@ -287,7 +287,7 @@ function AuthForm({ error: initialError }: { error?: string | null }) {
             onClick={() => { setAuthMethod('email'); setErrorMsg(null); }}
             className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               authMethod === 'email'
-                ? 'bg-gradient-to-r from-purple-600 via-rose-600 to-amber-600 text-white shadow-lg'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 border border-purple-400/30'
                 : 'text-white/60 hover:text-white'
             }`}
           >
@@ -392,7 +392,7 @@ function AuthForm({ error: initialError }: { error?: string | null }) {
               <button
                 type="submit"
                 disabled={otpLoading}
-                className="w-full h-12 rounded-2xl bg-gradient-to-r from-purple-600 via-rose-600 to-amber-600 text-white font-black text-xs uppercase tracking-wider shadow-xl shadow-purple-600/30 hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2"
+                className="w-full h-12 rounded-2xl bg-gradient-to-b from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-950/50 border border-purple-400/25 hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2"
               >
                 {otpLoading ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -407,7 +407,7 @@ function AuthForm({ error: initialError }: { error?: string | null }) {
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4 animate-in fade-in">
               <div className="space-y-2 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-300 border border-purple-500/30 mx-auto flex items-center justify-center text-xl shadow-lg">
+                <div className="w-12 h-12 rounded-2xl bg-purple-950/60 text-purple-300 border border-purple-500/30 mx-auto flex items-center justify-center text-xl shadow-lg shadow-purple-950/40">
                   <KeyRound className="w-6 h-6" />
                 </div>
                 <h3 className="text-sm font-bold text-white">Enter 6-Digit OTP Code</h3>
@@ -415,8 +415,8 @@ function AuthForm({ error: initialError }: { error?: string | null }) {
                   Sent to <span className="font-mono text-purple-300 font-bold">{phoneNumber}</span>
                 </p>
                 {demoCodeHint && (
-                  <div className="p-2 rounded-xl bg-purple-950/60 border border-purple-500/40 text-[11px] text-purple-200">
-                    💡 Test Code: <span className="font-mono font-bold tracking-widest">{demoCodeHint}</span> or <span className="font-mono font-bold">123456</span>
+                  <div className="p-2 rounded-xl bg-purple-950/40 border border-purple-500/25 text-[11px] text-purple-200">
+                    Test Code: <span className="font-mono font-bold tracking-widest">{demoCodeHint}</span> or <span className="font-mono font-bold">123456</span>
                   </div>
                 )}
               </div>
@@ -430,14 +430,14 @@ function AuthForm({ error: initialError }: { error?: string | null }) {
                   placeholder="• • • • • •"
                   autoFocus
                   required
-                  className="w-full h-14 rounded-2xl bg-white/5 border border-purple-500/50 px-4 text-center text-xl tracking-[0.6em] font-mono text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                  className="w-full h-14 rounded-2xl bg-black/60 border border-purple-500/40 px-4 text-center text-xl tracking-[0.6em] font-mono text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-400 transition-all"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={otpLoading}
-                className="w-full h-12 rounded-2xl bg-gradient-to-r from-purple-600 via-rose-600 to-amber-600 text-white font-black text-xs uppercase tracking-wider shadow-xl shadow-purple-600/30 hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2"
+                className="w-full h-12 rounded-2xl bg-gradient-to-b from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-950/50 border border-purple-400/25 hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2"
               >
                 {otpLoading ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -523,7 +523,7 @@ function AuthForm({ error: initialError }: { error?: string | null }) {
           <button
             type="submit"
             disabled={emailLoading}
-            className="w-full h-12 rounded-2xl bg-gradient-to-r from-purple-600 via-rose-600 to-amber-600 text-white font-black text-xs uppercase tracking-wider shadow-xl shadow-purple-600/30 hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2"
+            className="w-full h-12 rounded-2xl bg-gradient-to-b from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-950/50 border border-purple-400/25 hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2"
           >
             {emailLoading ? (
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

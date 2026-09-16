@@ -10,17 +10,23 @@ const SITE_KEY = '1x00000000000000000000AA';
 
   {/* Verification Card */}
   <div class="hg-card">
-    {/* Animated security shield badge */}
+    {/* Subtle top hairline highlight */}
+    <div class="hg-top-glow" aria-hidden="true"></div>
+
+    {/* Security shield icon badge */}
     <div class="hg-badge" aria-hidden="true">
       <div class="hg-badge-glow"></div>
-      <svg class="hg-shield-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <svg class="hg-shield-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         <path d="m9 12 2 2 4-4" />
       </svg>
     </div>
 
     <div class="hg-header">
-      <span class="hg-pill">🛡️ Security Check</span>
+      <div class="hg-pill">
+        <span class="hg-pill-dot" aria-hidden="true"></span>
+        <span>Security Verification</span>
+      </div>
       <h1 id="hg-title" class="hg-title">Verify You're Human</h1>
       <p id="hg-desc" class="hg-desc">
         A quick browser verification to protect Filmora Movie from automated scrapers and bots.
@@ -45,7 +51,11 @@ const SITE_KEY = '1x00000000000000000000AA';
           class="hg-verify-btn"
           onclick="window.onHumanVerified()"
         >
-          <span class="hg-check-box">✓</span>
+          <span class="hg-check-box" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </span>
           <span>I am human · Continue to Filmora</span>
         </button>
       </div>
@@ -56,7 +66,13 @@ const SITE_KEY = '1x00000000000000000000AA';
       <p id="hg-status" class="hg-status" role="status" aria-live="polite">
         <span class="hg-dot"></span> Checking browser integrity…
       </p>
-      <p class="hg-fine">Protected by Cloudflare Turnstile &amp; Filmora Guard</p>
+      <p class="hg-fine">
+        <svg class="hg-lock-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+        <span>Protected by Cloudflare Turnstile &amp; Filmora Guard</span>
+      </p>
     </div>
   </div>
 </div>
@@ -66,7 +82,17 @@ const SITE_KEY = '1x00000000000000000000AA';
   (function () {
     var KEY = 'nx_human_ok';
 
+    function isPreview() {
+      try {
+        var p = new URLSearchParams(window.location.search);
+        return p.has('preview_gate') || p.has('verify') || p.has('gate');
+      } catch (e) {
+        return false;
+      }
+    }
+
     function isVerified() {
+      if (isPreview()) return false;
       try {
         return sessionStorage.getItem(KEY) === '1' || document.cookie.indexOf('filmora_human=1') !== -1;
       } catch (e) {
@@ -89,38 +115,47 @@ const SITE_KEY = '1x00000000000000000000AA';
       if (g) {
         document.documentElement.classList.add('hg-lock');
         g.style.display = 'flex';
+        // If in preview mode, reveal the manual button immediately for visual verification
+        if (isPreview()) {
+          var manual = document.getElementById('hg-manual-wrap');
+          if (manual) manual.style.display = 'block';
+        }
       }
     }
 
     // Global callbacks
     window.onHumanVerified = function () {
-      try {
-        sessionStorage.setItem(KEY, '1');
-        document.cookie = 'filmora_human=1; path=/; max-age=86400; SameSite=Lax';
-      } catch (e) {}
+      if (!isPreview()) {
+        try {
+          sessionStorage.setItem(KEY, '1');
+          document.cookie = 'filmora_human=1; path=/; max-age=86400; SameSite=Lax';
+        } catch (e) {}
+      }
       var s = document.getElementById('hg-status');
       if (s) {
         s.innerHTML = '<span class="hg-dot is-success"></span> Verified! Entering Filmora…';
       }
-      hideGate();
+      if (!isPreview()) {
+        hideGate();
+      }
     };
 
     window.onHumanError = function () {
       var s = document.getElementById('hg-status');
       if (s) {
-        s.innerHTML = '<span class="hg-dot is-error"></span> Automatic check pending. Click button below:';
+        s.innerHTML = '<span class="hg-dot is-error"></span> Verification required. Click button below:';
       }
       var manual = document.getElementById('hg-manual-wrap');
       if (manual) manual.style.display = 'block';
     };
 
-    // Auto-reveal manual verify button after 2.5s if Turnstile is blocked by ad-blocker
+    // Auto-reveal manual verify button after 2s if Turnstile is blocked or taking time
     window.setTimeout(function () {
       var manual = document.getElementById('hg-manual-wrap');
       if (manual && !isVerified()) {
         manual.style.display = 'block';
       }
-    }, 2200);
+    }, 2000);
 
     if (isVerified()) {
       hideGate();
@@ -137,6 +172,10 @@ const SITE_KEY = '1x00000000000000000000AA';
     height: 100% !important;
   }
 
+  html.nx-verified #human-gate {
+    display: none !important;
+  }
+
   .hg-container {
     position: fixed;
     inset: 0;
@@ -146,101 +185,136 @@ const SITE_KEY = '1x00000000000000000000AA';
     justify-content: center;
     padding: 1.25rem;
     opacity: 1;
-    transition: opacity 320ms cubic-bezier(0.16, 1, 0.3, 1), transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1), transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .hg-container.hg-done {
     opacity: 0;
-    transform: scale(0.96);
+    transform: scale(0.97);
     pointer-events: none;
   }
 
   .hg-backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(5, 8, 17, 0.88);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    background: rgba(3, 3, 5, 0.92);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
   }
 
   .hg-card {
     position: relative;
     z-index: 10;
     width: 100%;
-    max-width: 440px;
+    max-width: 420px;
     padding: 2.25rem 2rem;
-    border-radius: 28px;
-    background: linear-gradient(180deg, rgba(26, 20, 42, 0.85) 0%, rgba(12, 10, 20, 0.95) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 32px 80px -20px rgba(168, 85, 247, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    border-radius: 24px;
+    background: linear-gradient(180deg, #0e0c16 0%, #06050a 100%);
+    border: 1px solid rgba(147, 51, 234, 0.22);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+      0 24px 64px -16px rgba(0, 0, 0, 0.9),
+      0 0 50px -12px rgba(124, 58, 237, 0.18);
     text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 1.25rem;
+    overflow: hidden;
+  }
+
+  /* Subtle purple ambient gradient at the top edge of the card */
+  .hg-top-glow {
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.6), transparent);
   }
 
   .hg-badge {
     position: relative;
-    width: 64px;
-    height: 64px;
-    border-radius: 20px;
-    background: linear-gradient(135deg, #7c3aed, #db2777);
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    background: linear-gradient(145deg, #19122b 0%, #0e0a19 100%);
+    border: 1px solid rgba(168, 85, 247, 0.35);
     display: grid;
     place-items: center;
-    color: #fff;
-    box-shadow: 0 12px 30px rgba(124, 58, 237, 0.45);
+    color: #ffffff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      0 8px 24px -4px rgba(124, 58, 237, 0.35);
   }
 
   .hg-badge-glow {
     position: absolute;
-    inset: -4px;
-    border-radius: 24px;
-    background: linear-gradient(135deg, #7c3aed, #db2777);
-    opacity: 0.4;
-    filter: blur(8px);
+    inset: -3px;
+    border-radius: 20px;
+    background: #7c3aed;
+    opacity: 0.25;
+    filter: blur(10px);
     z-index: -1;
-    animation: hg-pulse 2s ease-in-out infinite alternate;
+    animation: hg-pulse 3s ease-in-out infinite alternate;
   }
 
   @keyframes hg-pulse {
-    0% { transform: scale(0.95); opacity: 0.3; }
-    100% { transform: scale(1.08); opacity: 0.6; }
+    0% { transform: scale(0.96); opacity: 0.18; }
+    100% { transform: scale(1.05); opacity: 0.35; }
+  }
+
+  .hg-shield-icon {
+    color: #ffffff;
+    filter: drop-shadow(0 2px 6px rgba(147, 51, 234, 0.4));
   }
 
   .hg-header {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.45rem;
   }
 
   .hg-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     font-size: 0.6875rem;
-    font-weight: 800;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #d8b4fe;
-    background: rgba(168, 85, 247, 0.15);
-    border: 1px solid rgba(168, 85, 247, 0.3);
+    letter-spacing: 0.1em;
+    color: #c084fc;
+    background: rgba(147, 51, 234, 0.1);
+    border: 1px solid rgba(147, 51, 234, 0.25);
     padding: 0.25rem 0.75rem;
     border-radius: 999px;
   }
 
+  .hg-pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #a855f7;
+    box-shadow: 0 0 6px #a855f7;
+  }
+
   .hg-title {
-    font-size: 1.5rem;
-    font-weight: 900;
-    color: #fff;
-    letter-spacing: -0.02em;
+    font-size: 1.4375rem;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.025em;
     margin: 0;
+    text-wrap: balance;
   }
 
   .hg-desc {
     font-size: 0.8125rem;
     color: rgba(255, 255, 255, 0.65);
-    line-height: 1.45;
+    line-height: 1.5;
     margin: 0;
     max-width: 320px;
+    text-wrap: pretty;
   }
 
   .hg-widget-area {
@@ -249,7 +323,7 @@ const SITE_KEY = '1x00000000000000000000AA';
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 70px;
+    min-height: 68px;
   }
 
   .hg-manual-wrap {
@@ -260,28 +334,39 @@ const SITE_KEY = '1x00000000000000000000AA';
   .hg-verify-btn {
     width: 100%;
     padding: 0.875rem 1.25rem;
-    border-radius: 16px;
-    background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    color: #fff;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #7c3aed 0%, #6d28d9 100%);
+    border: 1px solid rgba(216, 180, 254, 0.35);
+    color: #ffffff;
     font-size: 0.875rem;
-    font-weight: 800;
+    font-weight: 700;
+    letter-spacing: 0.01em;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.6rem;
-    box-shadow: 0 10px 25px rgba(99, 102, 241, 0.35);
-    transition: transform 160ms ease, filter 160ms ease;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 8px 24px -4px rgba(124, 58, 237, 0.45);
+    transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
   }
 
   .hg-verify-btn:hover {
-    transform: translateY(-2px);
-    filter: brightness(1.1);
+    background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%);
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 12px 28px -4px rgba(139, 92, 246, 0.55);
   }
 
   .hg-verify-btn:active {
     transform: scale(0.98);
+  }
+
+  .hg-verify-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px #000000, 0 0 0 4px #a855f7;
   }
 
   .hg-check-box {
@@ -290,42 +375,44 @@ const SITE_KEY = '1x00000000000000000000AA';
     width: 20px;
     height: 20px;
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.25);
-    font-size: 11px;
-    font-weight: 900;
+    background: rgba(0, 0, 0, 0.3);
+    color: #ffffff;
   }
 
   .hg-footer {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.35rem;
   }
 
   .hg-status {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.65);
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.45rem;
     margin: 0;
   }
 
   .hg-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: #a855f7;
+    box-shadow: 0 0 6px #a855f7;
     animation: hg-pulse 1.2s infinite;
   }
 
   .hg-dot.is-success {
-    background: #10b981;
+    background: #22c55e;
+    box-shadow: 0 0 6px #22c55e;
     animation: none;
   }
 
   .hg-dot.is-error {
     background: #f59e0b;
+    box-shadow: 0 0 6px #f59e0b;
     animation: none;
   }
 
@@ -333,5 +420,23 @@ const SITE_KEY = '1x00000000000000000000AA';
     font-size: 0.6875rem;
     color: rgba(255, 255, 255, 0.4);
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .hg-lock-icon {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hg-container,
+    .hg-verify-btn,
+    .hg-badge-glow,
+    .hg-dot {
+      animation: none !important;
+      transition: none !important;
+    }
   }
 </style>
+

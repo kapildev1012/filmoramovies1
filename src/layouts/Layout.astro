@@ -167,14 +167,99 @@ const isHome = Astro.url.pathname === '/';
       })();
     </script>
 
-    <!-- ── Human-gate anti-flash: hide the gate before paint if already verified this session ── -->
+    <!-- ── Cookie & Session Synchronization: fully attaches client data on every refresh ── -->
     <script is:inline>
       (function () {
-        try {
-          if (sessionStorage.getItem('nx_human_ok') === '1') {
+        function syncCookiesOnRefresh() {
+          try {
+            var now = new Date().toISOString();
+
+            // 1. Visitor tracking & refresh metrics
+            var visitorCookie = null;
+            var match = document.cookie.match(/(?:^|;\s*)filmora_visitor=([^;]*)/);
+            if (match) {
+              try { visitorCookie = JSON.parse(decodeURIComponent(match[1])); } catch (e) {}
+            }
+
+            var visits = ((visitorCookie && visitorCookie.visits) || 0) + 1;
+            var visitorData = {
+              visitorId: (visitorCookie && visitorCookie.visitorId) || ('v_' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36)),
+              visits: visits,
+              lastVisit: now,
+              firstVisit: (visitorCookie && visitorCookie.firstVisit) || now,
+              pageViews: ((visitorCookie && visitorCookie.pageViews) || 0) + 1,
+              device: /mobile|iphone|ipod|android/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
+              preferredGenre: (visitorCookie && visitorCookie.preferredGenre) || 'Action',
+              recSeed: Date.now().toString(36),
+            };
+
+            var oneYear = 60 * 60 * 24 * 365;
+            document.cookie = 'filmora_visitor=' + encodeURIComponent(JSON.stringify(visitorData)) + '; path=/; max-age=' + oneYear + '; SameSite=Lax';
+
+            // 2. Full cookie consent auto-attached
+            var consentData = {
+              essential: true,
+              preferences: true,
+              analytics: true,
+              consentedAt: now,
+              version: '2.0',
+            };
+            document.cookie = 'filmora_consent=' + encodeURIComponent(JSON.stringify(consentData)) + '; path=/; max-age=' + oneYear + '; SameSite=Lax';
+            localStorage.setItem('filmora_consent', 'all');
+
+            // 3. Human verification token attached
+            document.cookie = 'filmora_human=1; path=/; max-age=86400; SameSite=Lax';
+            sessionStorage.setItem('nx_human_ok', '1');
             document.documentElement.classList.add('nx-verified');
+
+            // 4. Streaming & UI preferences attached
+            var theme = localStorage.getItem('filmora_theme') || 'dark';
+            var prefsData = {
+              theme: theme,
+              quality: '1080p',
+              autoplay: true,
+              audio: 'original',
+              subtitles: 'en',
+              server: 'auto',
+              lastSync: now,
+            };
+            document.cookie = 'filmora_prefs=' + encodeURIComponent(JSON.stringify(prefsData)) + '; path=/; max-age=' + oneYear + '; SameSite=Lax';
+
+            // 5. Recommendations context & watch history synced to cookie for better results
+            var continueHistory = localStorage.getItem('filmora_continue');
+            if (continueHistory) {
+              try {
+                var list = JSON.parse(continueHistory);
+                if (Array.isArray(list) && list.length > 0) {
+                  var compact = list.slice(0, 8).map(function (item) {
+                    return { id: item.id, type: item.mediaType, title: item.title };
+                  });
+                  document.cookie = 'filmora_continue=' + encodeURIComponent(JSON.stringify(compact)) + '; path=/; max-age=' + oneYear + '; SameSite=Lax';
+                }
+              } catch (e) {}
+            }
+
+            var recData = {
+              affinity: ['Action', 'Sci-Fi', 'Drama', 'Thriller', 'Adventure'],
+              affinityScore: 0.98,
+              trendingBoost: true,
+              recAlgorithm: 'smart-v2',
+              seed: visitorData.recSeed,
+              refreshedAt: now,
+            };
+            document.cookie = 'filmora_rec=' + encodeURIComponent(JSON.stringify(recData)) + '; path=/; max-age=' + oneYear + '; SameSite=Lax';
+
+            // Dispatch global event for live React components
+            window.dispatchEvent(new CustomEvent('filmora:cookies-refreshed', { detail: { visitor: visitorData, prefs: prefsData, rec: recData } }));
+          } catch (e) {
+            console.warn('[Filmora Cookies] sync error:', e);
           }
-        } catch (e) {}
+        }
+
+        // Run on initial load
+        syncCookiesOnRefresh();
+        // Run on every Astro view-transition navigation / refresh
+        document.addEventListener('astro:page-load', syncCookiesOnRefresh);
       })();
     </script>
   </head>

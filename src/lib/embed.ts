@@ -49,46 +49,99 @@ const ACCENT = 'e50914';
 
 /** Identifier for a streaming server/source. */
 export type EmbedServerId =
+  | 'vidcore'
+  | 'vidrock'
+  | 'vidzee'
+  | 'videasy'
+  | 'mov2day'
+  | 'peachify'
+  | '111movies'
+  | 'toustream'
+  | 'airflix'
+  | 'vidsrc_embed'
+  | 'vidfast'
+  | 'vidsync'
+  | 'vidlux'
+  | 'vidking'
+  | 'mapple'
+  | 'rive'
+  | 'fmovies'
+  | 'streamxtv'
+  | 'hexa'
+  | 'twoembed'
   | 'vidsrcin'
   | 'vidlink'
   | 'autoembed'
   | 'superembed'
-  | 'vidfast'
-  | 'videasy'
-  | 'smashystream'
   | 'embedsu'
   | 'vidsrcicu'
-  | 'nexstream';
+  | 'nexstream'
+  | 'smashystream'
+  | 'megaplay'
+  | 'vidnest_anime'
+  | 'vidnest_animepahe'
+  | 'tryembed';
 
 /** How trustworthy a provider's availability probe can be. */
 export type ProbeConfidence = 'title' | 'live';
 
+/** Dedicated anime-only streaming providers (only serve anime titles). */
+export const ANIME_SERVERS = new Set<string>([
+  'megaplay',
+  'vidnest_anime',
+  'vidnest_animepahe',
+  'tryembed',
+]);
+
 /** What we want to play. */
 export type EmbedTarget =
-  | { kind: 'movie'; id: number | string }
-  | { kind: 'tv'; id: number | string; season: number | string; episode: number | string };
+  | { kind: 'movie'; id: number | string; isAnime?: boolean }
+  | { kind: 'tv'; id: number | string; season: number | string; episode: number | string; isAnime?: boolean };
 
 /**
  * Client-safe metadata about each streaming server. Contains NO secrets and no
- * provider URLs — just id, display name and probe confidence — so it is safe to
+ * provider URLs — just id, display name, badge and probe confidence — so it is safe to
  * send to the browser via /api/embed/servers.
  */
 export const EMBED_SERVER_META: ReadonlyArray<{
   id: EmbedServerId;
   name: string;
   label: string;
+  badge?: string;
   confidence: ProbeConfidence;
 }> = [
-  { id: 'vidsrcin', name: 'VidSrc IN (Hindi)', label: 'Server 1', confidence: 'title' },
-  { id: 'vidlink', name: 'VidLink (Fast HD)', label: 'Server 2', confidence: 'title' },
-  { id: 'autoembed', name: 'AutoEmbed (Multi-Sub)', label: 'Server 3', confidence: 'live' },
-  { id: 'superembed', name: 'SuperEmbed (Multi)', label: 'Server 4', confidence: 'live' },
-  { id: 'vidfast', name: 'VidFast', label: 'Server 5', confidence: 'live' },
-  { id: 'videasy', name: 'Videasy', label: 'Server 6', confidence: 'live' },
-  { id: 'smashystream', name: 'SmashyStream', label: 'Server 7', confidence: 'live' },
-  { id: 'embedsu', name: 'Embed.su (4K/1080p)', label: 'Server 8', confidence: 'live' },
-  { id: 'vidsrcicu', name: 'VidSrc ICU (Global)', label: 'Server 9', confidence: 'live' },
-  { id: 'nexstream', name: 'NexStream (VidKing)', label: 'Server 10', confidence: 'title' },
+  { id: 'vidcore', name: 'VidCore (Fast Series)', label: 'Server 1', badge: 'Fast Series', confidence: 'live' },
+  { id: 'vidrock', name: 'VidRock (EU Mirror)', label: 'Server 2', confidence: 'live' },
+  { id: 'vidzee', name: 'VidZee (HD)', label: 'Server 3', badge: 'HD', confidence: 'live' },
+  { id: 'videasy', name: 'Videasy (Auto-Next)', label: 'Server 4', badge: 'Auto-Next', confidence: 'live' },
+  { id: 'mov2day', name: 'Mov2Day (CDN)', label: 'Server 5', confidence: 'live' },
+  { id: 'peachify', name: 'Peachify (Multi-Audio)', label: 'Server 6', badge: 'Multi-Audio', confidence: 'live' },
+  { id: '111movies', name: '111Movies', label: 'Server 7', confidence: 'live' },
+  { id: 'toustream', name: 'TouStream (Ad-Free)', label: 'Server 8', badge: 'Ad-Free', confidence: 'live' },
+  { id: 'airflix', name: 'AirFlix', label: 'Server 9', confidence: 'live' },
+  { id: 'vidsrc_embed', name: 'VidSrc Embed', label: 'Server 10', confidence: 'live' },
+  { id: 'vidfast', name: 'VidFast', label: 'Server 11', badge: 'Fast', confidence: 'live' },
+  { id: 'vidsync', name: 'VidSync', label: 'Server 12', confidence: 'live' },
+  { id: 'vidlux', name: 'VidLux', label: 'Server 13', confidence: 'live' },
+  { id: 'vidking', name: 'VidKing (Auto-Next)', label: 'Server 14', badge: 'Auto-Next', confidence: 'title' },
+  { id: 'mapple', name: 'Mapple TV', label: 'Server 15', confidence: 'live' },
+  { id: 'rive', name: 'RiveStream (Ad-Free)', label: 'Server 16', badge: 'Ad-Free', confidence: 'live' },
+  { id: 'streamxtv', name: 'StreamXTV Official', label: 'Server 17', badge: 'StreamX', confidence: 'live' },
+  { id: 'hexa', name: 'Hexa HD', label: 'Server 18', badge: 'Ultra-Fast', confidence: 'live' },
+  { id: 'vidsrcin', name: 'VidSrc IN (Hindi/Reg)', label: 'Server 19', badge: 'Hindi/Reg', confidence: 'title' },
+  { id: 'vidlink', name: 'VidLink (Fast HD)', label: 'Server 20', badge: 'Fast HD', confidence: 'title' },
+  { id: 'autoembed', name: 'AutoEmbed (Multi-Sub)', label: 'Server 21', badge: 'Multi-Sub', confidence: 'live' },
+  { id: 'embedsu', name: 'Embed.su (4K/1080p)', label: 'Server 22', badge: '4K/1080p', confidence: 'live' },
+  { id: 'superembed', name: 'SuperEmbed (Multi)', label: 'Server 23', confidence: 'live' },
+  { id: 'twoembed', name: '2Embed', label: 'Server 24', confidence: 'live' },
+  { id: 'fmovies', name: 'FMovies', label: 'Server 25', confidence: 'live' },
+  { id: 'vidsrcicu', name: 'VidSrc ICU (Global)', label: 'Server 26', confidence: 'live' },
+  { id: 'nexstream', name: 'NexStream', label: 'Server 27', confidence: 'title' },
+  { id: 'smashystream', name: 'SmashyStream', label: 'Server 28', confidence: 'live' },
+  { id: 'megaplay', name: 'MegaPlay (Anime)', label: 'Server 29', badge: 'Anime Sub/Dub', confidence: 'live' },
+  { id: 'vidnest_anime', name: 'VidNest (Anime)', label: 'Server 30', badge: 'Anime', confidence: 'live' },
+  { id: 'vidnest_animepahe', name: 'AnimePahe', label: 'Server 31', badge: 'Anime', confidence: 'live' },
+  { id: 'tryembed', name: 'TryEmbed (Anime)', label: 'Server 32', badge: 'Anime', confidence: 'live' },
 ];
 
 const VALID_SERVERS = new Set<string>(EMBED_SERVER_META.map((s) => s.id));
@@ -138,16 +191,38 @@ export function getEmbedApiKey(): string {
  *                            than sending noise.
  */
 const RESUME_PARAM: Readonly<Record<EmbedServerId, string | null>> = {
+  vidcore: 'startAt',
+  vidrock: null,
+  vidzee: null,
+  videasy: 'progress',
+  mov2day: null,
+  peachify: null,
+  '111movies': null,
+  toustream: null,
+  airflix: null,
+  vidsrc_embed: null,
+  vidfast: 'startAt',
+  vidsync: null,
+  vidlux: null,
+  vidking: 'progress',
+  mapple: null,
+  rive: null,
+  fmovies: null,
+  streamxtv: 'progress',
+  hexa: null,
+  twoembed: null,
   vidsrcin: null,
   vidlink: 'startAt',
   autoembed: 'progress',
   superembed: null,
-  vidfast: 'startAt',
-  videasy: 'progress',
-  smashystream: null,
   embedsu: null,
   vidsrcicu: null,
   nexstream: 'progress',
+  smashystream: null,
+  megaplay: null,
+  vidnest_anime: null,
+  vidnest_animepahe: null,
+  tryembed: null,
 };
 
 /**
@@ -178,6 +253,86 @@ function providerUrl(server: EmbedServerId, target: EmbedTarget, startAtSeconds 
 
   const base = ((): string => {
   switch (server) {
+    case 'vidcore':
+      return isMovie
+        ? `https://vidcore.net/movie/${id}`
+        : `https://vidcore.net/tv/${id}/${s}/${e}`;
+    case 'vidrock':
+      return isMovie
+        ? `https://vidrock.ru/movie/${id}`
+        : `https://vidrock.ru/tv/${id}/${s}/${e}`;
+    case 'vidzee':
+      return isMovie
+        ? `https://player.vidzee.wtf/embed/movie/${id}`
+        : `https://player.vidzee.wtf/embed/tv/${id}/${s}/${e}`;
+    case 'videasy':
+      return isMovie
+        ? `https://player.videasy.net/movie/${id}?color=${ACCENT}`
+        : `https://player.videasy.net/tv/${id}/${s}/${e}?color=${ACCENT}&nextEpisode=true&episodeSelector=true`;
+    case 'mov2day':
+      return isMovie
+        ? `https://cdn.mov2day.xyz/embed/movie/${id}`
+        : `https://cdn.mov2day.xyz/embed/tv/${id}/${s}/${e}`;
+    case 'peachify':
+      return isMovie
+        ? `https://peachify.top/embed/movie/${id}`
+        : `https://peachify.top/embed/tv/${id}/${s}/${e}`;
+    case '111movies':
+      return isMovie
+        ? `https://111movies.net/movie/${id}`
+        : `https://111movies.net/tv/${id}/${s}/${e}`;
+    case 'toustream':
+      return isMovie
+        ? `https://toustream-play.chickenkiller.com/tou/movies/${id}?autonext=false&color=${ACCENT}`
+        : `https://toustream-play.chickenkiller.com/tou/tv/${id}/${s}/${e}?autonext=false&color=${ACCENT}`;
+    case 'airflix':
+      return isMovie
+        ? `https://airflix1.com/embed/movie/${id}`
+        : `https://airflix1.com/embed/tv/${id}/${s}/${e}`;
+    case 'vidsrc_embed':
+      return isMovie
+        ? `https://vidsrc-embed.ru/embed/movie/${id}?autoplay=0`
+        : `https://vidsrc-embed.ru/embed/tv/${id}/${s}-${e}?autoplay=0&autonext=0`;
+    case 'vidfast':
+      return isMovie
+        ? `https://vidfast.pro/movie/${id}?theme=${ACCENT}&autoPlay=true`
+        : `https://vidfast.pro/tv/${id}/${s}/${e}?theme=${ACCENT}&autoPlay=true&nextButton=true`;
+    case 'vidsync':
+      return isMovie
+        ? `https://vidsync.xyz/embed/movie/${id}?autoPlay=false&theme=${ACCENT}`
+        : `https://vidsync.xyz/embed/tv/${id}/${s}/${e}?autoPlay=false&autoNext=false&theme=${ACCENT}`;
+    case 'vidlux':
+      return isMovie
+        ? `https://vidlux.xyz/embed/movie/${id}`
+        : `https://vidlux.xyz/embed/tv/${id}/${s}/${e}`;
+    case 'vidking':
+      return isMovie
+        ? `https://www.vidking.net/embed/movie/${id}?color=${ACCENT}&autoPlay=true`
+        : `https://www.vidking.net/embed/tv/${id}/${s}/${e}?color=${ACCENT}&autoPlay=true&nextEpisode=true&episodeSelector=true`;
+    case 'mapple':
+      return isMovie
+        ? `https://mappletv.uk/watch/movie/${id}`
+        : `https://mappletv.uk/watch/tv/${id}/${s}/${e}`;
+    case 'rive':
+      return isMovie
+        ? `https://rivestream.org/embed?type=movie&id=${id}`
+        : `https://rivestream.org/embed?type=tv&id=${id}&season=${s}&episode=${e}`;
+    case 'fmovies':
+      return isMovie
+        ? `https://www.fmovies.gd/watch/movie/${id}`
+        : `https://www.fmovies.gd/watch/tv/${id}/${s}/${e}`;
+    case 'streamxtv':
+      return isMovie
+        ? `https://embed.streamxtv.tech/embed/${id}`
+        : `https://embed.streamxtv.tech/embed/${id}/${s}/${e}`;
+    case 'hexa':
+      return isMovie
+        ? `https://hexa.su/watch/movie/${id}`
+        : `https://hexa.su/watch/tv/${id}/${s}/${e}`;
+    case 'twoembed':
+      return isMovie
+        ? `https://www.2embed.cc/embed/${id}`
+        : `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`;
     case 'vidsrcin':
       return isMovie
         ? `https://vidsrc.in/embed/movie/${id}`
@@ -194,18 +349,6 @@ function providerUrl(server: EmbedServerId, target: EmbedTarget, startAtSeconds 
       return isMovie
         ? `https://multiembed.mov/?video_id=${id}&tmdb=1`
         : `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`;
-    case 'videasy':
-      return isMovie
-        ? `https://player.videasy.net/movie/${id}?color=${ACCENT}`
-        : `https://player.videasy.net/tv/${id}/${s}/${e}?color=${ACCENT}&nextEpisode=true&episodeSelector=true`;
-    case 'vidfast':
-      return isMovie
-        ? `https://vidfast.pro/movie/${id}?theme=${ACCENT}&autoPlay=true`
-        : `https://vidfast.pro/tv/${id}/${s}/${e}?theme=${ACCENT}&autoPlay=true&nextButton=true`;
-    case 'smashystream':
-      return isMovie
-        ? `https://embed.smashystream.com/playere.php?tmdb=${id}`
-        : `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}`;
     case 'embedsu':
       return isMovie
         ? `https://embed.su/embed/movie/${id}`
@@ -215,14 +358,29 @@ function providerUrl(server: EmbedServerId, target: EmbedTarget, startAtSeconds 
         ? `https://vidsrc.icu/embed/movie/${id}`
         : `https://vidsrc.icu/embed/tv/${id}/${s}/${e}`;
     case 'nexstream':
-      // NEVER point at CodeSpecter's own /embed page: that URL carries
-      // ?apikey=, and the browser would see it in the 302 Location header.
-      // The JSON API resolves to a NexStream (vidking) player URL, so when the
-      // API is unreachable we build that same player URL ourselves. Key stays
-      // server-side, and the button keeps working.
       return isMovie
         ? `https://www.vidking.net/embed/movie/${id}?color=${ACCENT}&autoPlay=true`
         : `https://www.vidking.net/embed/tv/${id}/${s}/${e}?color=${ACCENT}&autoPlay=true&nextEpisode=true&episodeSelector=true`;
+    case 'smashystream':
+      return isMovie
+        ? `https://embed.smashystream.com/playere.php?tmdb=${id}`
+        : `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}`;
+    case 'megaplay':
+      return isMovie
+        ? `https://megaplay.buzz/stream/ani/${id}/1/sub`
+        : `https://megaplay.buzz/stream/ani/${id}/${e || 1}/sub`;
+    case 'vidnest_anime':
+      return isMovie
+        ? `https://vidnest.fun/anime/${id}/1/sub`
+        : `https://vidnest.fun/anime/${id}/${e || 1}/sub`;
+    case 'vidnest_animepahe':
+      return isMovie
+        ? `https://vidnest.fun/animepahe/${id}/1/sub`
+        : `https://vidnest.fun/animepahe/${id}/${e || 1}/sub`;
+    case 'tryembed':
+      return isMovie
+        ? `https://tryembed.us.cc/embed/anime/${id}/1/sub`
+        : `https://tryembed.us.cc/embed/anime/${id}/${e || 1}/sub`;
   }
   })();
 
@@ -286,7 +444,7 @@ function cacheSet(key: string, url: string | null, latencyMs: number | null): vo
   });
 }
 
-async function fetchWithTimeout(url: string, attempt = 0): Promise<Response> {
+async function fetchWithTimeout(url: string, attempt = 0, method: 'HEAD' | 'GET' = 'HEAD'): Promise<Response> {
   const ac = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -294,7 +452,8 @@ async function fetchWithTimeout(url: string, attempt = 0): Promise<Response> {
     ac.abort();
   }, PROBE_TIMEOUT_MS);
   try {
-    return await fetch(url, {
+    const res = await fetch(url, {
+      method,
       signal: ac.signal,
       redirect: 'follow',
       headers: {
@@ -304,12 +463,14 @@ async function fetchWithTimeout(url: string, attempt = 0): Promise<Response> {
         Accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
       },
     });
+    // Some endpoints reject HEAD with 405; gracefully fallback to GET
+    if (res.status === 405 && method === 'HEAD') {
+      clearTimeout(timer);
+      return fetchWithTimeout(url, attempt, 'GET');
+    }
+    return res;
   } catch (err) {
-    // One retry for a transient connection drop — but NOT when our own timeout
-    // fired. Retrying a timeout would double the worst-case wait, and with it
-    // the time "Auto" needs to confirm a server; the seeded pick already lets
-    // playback start, so a slow provider is better left unconfirmed than chased.
-    if (attempt === 0 && !timedOut) return fetchWithTimeout(url, 1);
+    if (attempt === 0 && !timedOut) return fetchWithTimeout(url, 1, 'GET');
     throw err;
   } finally {
     clearTimeout(timer);
@@ -439,7 +600,7 @@ const CONFIDENCE_RANK: Record<ProbeConfidence, number> = { title: 0, live: 1 };
  * so the next request (the client's revalidation, ~45s later, or a second viewer)
  * gets the full picture for free.
  */
-export const DEFAULT_PROBE_DEADLINE_MS = 800;
+export const DEFAULT_PROBE_DEADLINE_MS = 1400;
 
 export interface AvailabilityOptions {
   /** Wall-clock budget for the whole parallel pass. Clamped to 200–4000ms. */
@@ -447,21 +608,11 @@ export interface AvailabilityOptions {
 }
 
 /**
- * Probe every provider in parallel and describe all of them.
+ * Probe providers in parallel and describe available ones for this target.
  *
- * Every server is always returned, because a server-side probe is only advice:
- * it runs from a datacenter IP that providers throttle, so a failed probe often
- * means "we could not check", not "this will not play". Omitting the button
- * would take away a server that works fine in the viewer's browser. Instead the
- * probe result rides along as `online` / `verified` / `latencyMs` / `pending`,
- * and the player's own weighted scoring (src/lib/player/serverRanking.ts) turns
- * those signals into the automatic pick. Selecting any server always plays.
- *
- * PARALLEL AND TIME-BOUNDED. All five probes start in the same tick, and the
- * whole pass is raced against `deadlineMs`: whatever has answered by then is
- * reported, the rest come back `pending: true`. That is what keeps automatic
- * selection inside its one-second budget on a cold cache without lying about
- * providers that were merely slow.
+ * Specific filtering applied:
+ * - Anime servers (megaplay, vidnest_anime, etc.) are ONLY included for anime titles.
+ * - Confirmed working servers sort first.
  */
 export async function getAvailableServers(
   target: EmbedTarget,
@@ -489,8 +640,11 @@ export async function getAvailableServers(
     };
   };
 
-  // One shared timer for the whole pass rather than one per probe, so five
-  // providers cost one deadline instead of five staggered ones.
+  // Only probe servers suitable for this specific target (e.g. omit anime servers for standard western titles)
+  const candidateMeta = target.isAnime
+    ? EMBED_SERVER_META
+    : EMBED_SERVER_META.filter((m) => !ANIME_SERVERS.has(m.id));
+
   let expire: () => void = () => {};
   const deadline = new Promise<null>((resolve) => {
     const timer = setTimeout(() => resolve(null), deadlineMs);
@@ -499,13 +653,11 @@ export async function getAvailableServers(
 
   try {
     const results = await Promise.all(
-      EMBED_SERVER_META.map(async (meta) => {
+      candidateMeta.map(async (meta) => {
         const probe = probeServerTimed(meta.id, target).catch(() => ({
           url: null,
           latencyMs: null,
         }));
-        // Race, do not cancel: a probe that loses the race still finishes and
-        // caches its answer, which is what makes the revalidation pass instant.
         const settled = await Promise.race([probe, deadline]);
         return describe(meta, settled);
       })

@@ -48,5 +48,15 @@ declare namespace App {
     cfContext?: {
       waitUntil(promise: Promise<any>): void;
     };
+    /** Attached visitor session and recommendation profile from cookies. */
+    visitor?: {
+      visitorId: string;
+      visits: number;
+      lastVisit: string;
+      firstVisit: string;
+      preferredGenre?: string;
+      device?: string;
+      recSeed?: string;
+    };
   }
 }

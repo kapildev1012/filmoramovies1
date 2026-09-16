@@ -12,6 +12,7 @@
 // -> { servers: [{ id, name, label, verified, online, confidence }], count }
 import type { APIRoute } from 'astro';
 import {
+  ANIME_SERVERS,
   DEFAULT_PROBE_DEADLINE_MS,
   EMBED_SERVER_META,
   getAvailableServers,
@@ -53,9 +54,11 @@ export const GET: APIRoute = async ({ url }) => {
     );
   }
 
+  const isAnime = url.searchParams.get('anime') === '1' || url.searchParams.get('anime') === 'true';
+
   let target: EmbedTarget;
   if (type === 'movie') {
-    target = { kind: 'movie', id };
+    target = { kind: 'movie', id, isAnime };
   } else {
     const season = url.searchParams.get('season');
     const episode = url.searchParams.get('episode');
@@ -69,7 +72,7 @@ export const GET: APIRoute = async ({ url }) => {
         { status: 400 }
       );
     }
-    target = { kind: 'tv', id, season, episode };
+    target = { kind: 'tv', id, season, episode, isAnime };
   }
 
   try {
@@ -95,10 +98,9 @@ export const GET: APIRoute = async ({ url }) => {
       }
     );
   } catch {
-    // Probing failed wholesale (network, config). Still hand back the server
-    // list so the viewer keeps every button — just without confirmation marks.
+    const fallback = isAnime ? UNPROBED : UNPROBED.filter((u) => !ANIME_SERVERS.has(u.id));
     return Response.json(
-      { servers: UNPROBED, count: UNPROBED.length, probed: false },
+      { servers: fallback, count: fallback.length, probed: false },
       { headers: { 'Cache-Control': 'no-store' } }
     );
   }

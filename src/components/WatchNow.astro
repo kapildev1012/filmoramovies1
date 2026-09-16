@@ -39,6 +39,8 @@ interface Props {
   markers?: TimeMarker[];
   /** "More like this" tiles for the end card. */
   related?: RelatedTitle[];
+  /** Genres for title-specific server matching (e.g. animation/anime vs live-action). */
+  genres?: string[];
 }
 
 const {
@@ -52,6 +54,7 @@ const {
   media = null,
   markers = [],
   related = [],
+  genres = [],
 } = Astro.props;
 ---
 
@@ -72,6 +75,7 @@ const {
     media={media}
     markers={markers}
     related={related}
+    genres={genres}
   />
 </section>
 

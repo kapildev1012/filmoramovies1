@@ -23,7 +23,7 @@
 // Netflix and JioHotstar use for pickers on a phone, where a row of pills would
 // be either unreadable or unhittable.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckIcon, CloseIcon } from './Icons';
 import type { EngineId } from '../../../lib/player/types';
 import type { PlayerT } from '../../../lib/player/strings';
@@ -34,6 +34,8 @@ export interface ServerOption {
   verified: boolean;
   online: boolean;
   live?: boolean;
+  /** Display badge (e.g., 'Fast Series', 'Ad-Free', 'Auto-Next', 'Multi-Audio', 'Fast HD'). */
+  badge?: string;
   /** "1080p" when the data model knows; null while quality is unavailable. */
   qualityLabel?: string | null;
   /** Measured probe round-trip, shown as a subtle hint on wide screens. */
@@ -138,6 +140,23 @@ export default function SourceBar({
     return () => document.removeEventListener('keydown', onKey);
   }, [sheetOpen, close]);
 
+  const [showAll, setShowAll] = useState(false);
+
+  // Filter to working servers only by default:
+  // Confirmed working: verified on edge, live in browser, online, reachability open, or active/recommended
+  const workingServers = useMemo(() => {
+    const confirmed = servers.filter(
+      (s) => s.live || s.verified || s.online || s.reachable === true || s.id === activeServer || s.id === recommended
+    );
+    if (confirmed.length >= 2) {
+      return confirmed;
+    }
+    return servers.slice(0, 5);
+  }, [servers, activeServer, recommended]);
+
+  const visibleServers = showAll ? servers : workingServers;
+  const hasHidden = servers.length > workingServers.length;
+
   if (!showEngines && !showServers) return null;
 
   const active = servers.find((s) => s.id === activeServer) ?? null;
@@ -168,6 +187,19 @@ export default function SourceBar({
         <div className="fp-source-group fp-source-group-servers" role="group" aria-label={t('servers')}>
           <span className="fp-source-label">
             {t('servers')}
+            {!showAll && (
+              <span
+                className="fp-quality-badge is-best"
+                style={{
+                  marginLeft: '0.45rem',
+                  fontSize: '0.55rem',
+                  padding: '0.05rem 0.32rem',
+                  verticalAlign: 'middle',
+                }}
+              >
+                Working Only
+              </span>
+            )}
             {checking && <span className="fp-source-checking" aria-hidden="true" />}
           </span>
 
@@ -193,22 +225,24 @@ export default function SourceBar({
                 aria-expanded={sheetOpen}
                 onClick={() => setSheetOpen((open) => !open)}
               >
-                {active && (active.verified || active.live) && (
+                {active && (active.verified || active.live || active.online) && (
                   <span className="fp-pill-dot" aria-hidden="true" />
                 )}
                 <span className="fp-server-trigger-name">
                   {active?.name ?? (checking ? t('loading') : t('chooseServer'))}
                 </span>
-                {active?.qualityLabel && (
+                {active?.badge ? (
+                  <span className="fp-quality-badge">{active.badge}</span>
+                ) : active?.qualityLabel ? (
                   <span className="fp-quality-badge">{active.qualityLabel}</span>
-                )}
+                ) : null}
                 {isAuto && <span className="fp-server-trigger-auto">{t('auto')}</span>}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`pointer-events-none ml-1 transition-transform ${sheetOpen ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
               </button>
 
               {sheetOpen && (
                 <div className="flex flex-wrap gap-2 w-full animate-in fade-in slide-in-from-top-1">
-                  {servers.map((server) => (
+                  {visibleServers.map((server) => (
                     <button
                       key={server.id}
                       type="button"
@@ -221,47 +255,78 @@ export default function SourceBar({
                           : describe(server)
                       }
                     >
-                      {(server.verified || server.live) && (
+                      {(server.verified || server.live || server.online) && (
                         <span className="fp-pill-dot" aria-hidden="true" />
                       )}
                       {server.name}
-                      {server.qualityLabel && (
+                      {server.badge ? (
+                        <span className="fp-quality-badge">{server.badge}</span>
+                      ) : server.qualityLabel ? (
                         <span className="fp-quality-badge">{server.qualityLabel}</span>
-                      )}
+                      ) : null}
                       {recommended === server.id && isAuto && (
                         <span className="fp-quality-badge is-best">{t('bestQuality')}</span>
                       )}
                     </button>
                   ))}
+                  {hasHidden && (
+                    <button
+                      type="button"
+                      className="fp-pill fp-pill-more"
+                      onClick={() => setShowAll((v) => !v)}
+                      style={{ borderStyle: 'dashed', borderColor: 'rgba(168, 85, 247, 0.4)' }}
+                    >
+                      {showAll ? 'Working Only' : `+${servers.length - workingServers.length} More`}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           ) : (
-            servers.map((server) => (
-              <button
-                key={server.id}
-                type="button"
-                className={`fp-pill${activeServer === server.id ? ' is-active' : ''}${server.failed ? ' is-failed' : ''}${server.reachable === false ? ' is-blocked' : ''}`}
-                aria-pressed={activeServer === server.id}
-                onClick={() => onServer(server.id)}
-                title={
-                  recommended === server.id
-                    ? `${describe(server)} · ${t('bestQuality')}`
-                    : describe(server)
-                }
-              >
-                {(server.verified || server.live) && (
-                  <span className="fp-pill-dot" aria-hidden="true" />
-                )}
-                {server.name}
-                {server.qualityLabel && (
-                  <span className="fp-quality-badge">{server.qualityLabel}</span>
-                )}
-                {recommended === server.id && isAuto && (
-                  <span className="fp-quality-badge is-best">{t('bestQuality')}</span>
-                )}
-              </button>
-            ))
+            <>
+              {visibleServers.map((server) => (
+                <button
+                  key={server.id}
+                  type="button"
+                  className={`fp-pill${activeServer === server.id ? ' is-active' : ''}${server.failed ? ' is-failed' : ''}${server.reachable === false ? ' is-blocked' : ''}`}
+                  aria-pressed={activeServer === server.id}
+                  onClick={() => onServer(server.id)}
+                  title={
+                    recommended === server.id
+                      ? `${describe(server)} · ${t('bestQuality')}`
+                      : describe(server)
+                  }
+                >
+                  {(server.verified || server.live || server.online) && (
+                    <span className="fp-pill-dot" aria-hidden="true" />
+                  )}
+                  {server.name}
+                  {server.badge ? (
+                    <span className="fp-quality-badge">{server.badge}</span>
+                  ) : server.qualityLabel ? (
+                    <span className="fp-quality-badge">{server.qualityLabel}</span>
+                  ) : null}
+                  {recommended === server.id && isAuto && (
+                    <span className="fp-quality-badge is-best">{t('bestQuality')}</span>
+                  )}
+                </button>
+              ))}
+              {hasHidden && (
+                <button
+                  type="button"
+                  className="fp-pill fp-pill-more"
+                  onClick={() => setShowAll((v) => !v)}
+                  title={showAll ? 'Show working servers only' : `Show all ${servers.length} servers`}
+                  style={{
+                    opacity: 0.85,
+                    borderStyle: 'dashed',
+                    borderColor: 'rgba(168, 85, 247, 0.45)',
+                  }}
+                >
+                  {showAll ? 'Working Only' : `+${servers.length - workingServers.length} More`}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

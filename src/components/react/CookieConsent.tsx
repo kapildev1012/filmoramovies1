@@ -21,7 +21,11 @@ export default function CookieConsent() {
   });
 
   useEffect(() => {
-    const existing = localStorage.getItem(CONSENT_KEY);
+    const hasCookie = document.cookie.includes('filmora_consent=');
+    const existing = localStorage.getItem(CONSENT_KEY) || (hasCookie ? 'all' : null);
+    if (hasCookie && !localStorage.getItem(CONSENT_KEY)) {
+      localStorage.setItem(CONSENT_KEY, 'all');
+    }
     if (!existing) {
       // Small delay so it doesn't flash immediately
       const t = setTimeout(() => setVisible(true), 800);
@@ -37,6 +41,9 @@ export default function CookieConsent() {
     };
     localStorage.setItem(CONSENT_KEY, level ?? 'essential');
     localStorage.setItem(PREFS_KEY, JSON.stringify(finalPrefs));
+    try {
+      document.cookie = `filmora_consent=${encodeURIComponent(JSON.stringify(finalPrefs))}; path=/; max-age=31536000; SameSite=Lax`;
+    } catch {}
     setVisible(false);
 
     // Dispatch event so other code can respond (e.g. load analytics)

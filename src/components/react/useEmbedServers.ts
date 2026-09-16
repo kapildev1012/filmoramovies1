@@ -42,6 +42,7 @@ import {
   readHealth,
   readServerOverride,
   recordServerOutcome,
+  saveSeriesBestServer,
   titleKey as makeTitleKey,
   writeServerOverride,
   type HealthLedger,
@@ -57,10 +58,13 @@ import {
   type ServerHealthSnapshot,
 } from '../../lib/player/serverHealth';
 
+export const ANIME_SERVERS = new Set(['megaplay', 'vidnest_anime', 'vidnest_animepahe', 'tryembed']);
+
 export interface AvailableServer {
   id: string;
   name: string;
   label: string;
+  badge?: string;
   /** Backend confirmed a real source URL for this exact title. */
   verified: boolean;
   /** Provider answered the backend probe for this title. */
@@ -117,6 +121,7 @@ function toServers(snapshots: readonly ServerHealthSnapshot[]): AvailableServer[
     id: s.id,
     name: s.name,
     label: s.label,
+    badge: (s as any).badge ?? KNOWN_SERVERS.find((k) => k.id === s.id)?.badge,
     confidence: s.confidence,
     verified: s.verified,
     online: s.online,
@@ -141,12 +146,16 @@ interface Args {
   enabled?: boolean;
   /** Server id remembered from Continue Watching, preferred when still valid. */
   preferred?: string | null;
+  /** True when title is an anime */
+  isAnime?: boolean;
 }
 
-export function useEmbedServers({ type, id, season, episode, enabled = true, preferred }: Args) {
-  // Seeded with the full list so the picker is never empty, but WITHOUT a
+export function useEmbedServers({ type, id, season, episode, enabled = true, preferred, isAnime = false }: Args) {
+  // Seeded with the title-appropriate list so the picker is never empty, but WITHOUT a
   // selection: `server` is null until a health pass has decided.
-  const [servers, setServers] = useState<AvailableServer[]>(FALLBACK_SERVERS);
+  const [servers, setServers] = useState<AvailableServer[]>(() =>
+    isAnime ? FALLBACK_SERVERS : FALLBACK_SERVERS.filter((s) => !ANIME_SERVERS.has(s.id))
+  );
   const [status, setStatus] = useState<ServerStatus>('idle');
   const [server, setServer] = useState<string | null>(null);
   /** True while the current selection is the one scoring chose for us. */
@@ -183,8 +192,8 @@ export function useEmbedServers({ type, id, season, episode, enabled = true, pre
   const key = type === 'tv' ? `${type}:${id}:${season}:${episode}` : `${type}:${id}`;
 
   const target = useMemo<HealthTarget>(
-    () => ({ type, id, season: season ?? null, episode: episode ?? null }),
-    [type, id, season, episode]
+    () => ({ type, id, season: season ?? null, episode: episode ?? null, isAnime }),
+    [type, id, season, episode, isAnime]
   );
 
   /**
@@ -196,7 +205,9 @@ export function useEmbedServers({ type, id, season, episode, enabled = true, pre
    * disqualified, which is the one case where the viewer has to choose.
    */
   const adopt = useCallback((list: AvailableServer[]) => {
-    const safe = list.length > 0 ? list : FALLBACK_SERVERS;
+    const titleCandidates = isAnime ? list : list.filter((s) => !ANIME_SERVERS.has(s.id));
+    const fallbackList = isAnime ? FALLBACK_SERVERS : FALLBACK_SERVERS.filter((s) => !ANIME_SERVERS.has(s.id));
+    const safe = titleCandidates.length > 0 ? titleCandidates : fallbackList;
     setServers(safe);
 
     const override = readServerOverride(overrideKeyRef.current);
@@ -210,14 +221,20 @@ export function useEmbedServers({ type, id, season, episode, enabled = true, pre
         (s) => s.id === remembered && !tried.current.has(s.id) && s.reachable !== false
       )?.id ?? null;
 
-    const best = bestServerId(safe, { health: healthRef.current, tried: tried.current });
+    const best = bestServerId(safe, {
+      health: healthRef.current,
+      tried: tried.current,
+      isSeries: type === 'tv',
+      seriesId: type === 'tv' ? id : null,
+      isAnime,
+    });
     const pick = manual ?? cw ?? best;
 
     setServer(pick);
     setIsAuto(!manual && !cw);
     setStatus(pick ? 'ready' : 'exhausted');
     return pick;
-  }, []);
+  }, [type, id, isAnime]);
 
   /**
    * Run one selection pass.
@@ -268,14 +285,28 @@ export function useEmbedServers({ type, id, season, episode, enabled = true, pre
 
   /** The ranked list, best first. Recomputed only when the inputs change. */
   const ranked = useMemo<RankedServer<AvailableServer>[]>(
-    () => rankServers(servers, { health, tried: tried.current }),
-    [servers, health]
+    () =>
+      rankServers(servers, {
+        health,
+        tried: tried.current,
+        isSeries: type === 'tv',
+        seriesId: type === 'tv' ? id : null,
+        isAnime,
+      }),
+    [servers, health, type, id, isAnime]
   );
 
   /** What automatic selection would choose right now. */
   const recommended = useMemo(
-    () => bestServerId(servers, { health, tried: tried.current }),
-    [servers, health]
+    () =>
+      bestServerId(servers, {
+        health,
+        tried: tried.current,
+        isSeries: type === 'tv',
+        seriesId: type === 'tv' ? id : null,
+        isAnime,
+      }),
+    [servers, health, type, id, isAnime]
   );
 
   /**
@@ -287,23 +318,32 @@ export function useEmbedServers({ type, id, season, episode, enabled = true, pre
     setIsAuto(false);
     setStatus('ready');
     writeServerOverride(overrideKeyRef.current, next);
+    // If selecting for a series, remember this as the user's preferred series server
+    if (type === 'tv' && id) {
+      saveSeriesBestServer(id, next);
+    }
     // A deliberate pick re-opens the whole failover walk from here.
     tried.current = new Set();
-  }, []);
+  }, [type, id]);
 
   /**
    * Hand back control to automatic selection (the "Auto" pill).
    * Returns the id now playing so the caller can remount the engine.
    */
   const useAutoServer = useCallback((): string | null => {
-    const best = bestServerId(servers, { health: healthRef.current, tried: tried.current });
+    const best = bestServerId(servers, {
+      health: healthRef.current,
+      tried: tried.current,
+      isSeries: type === 'tv',
+      seriesId: type === 'tv' ? id : null,
+    });
     if (best) {
       setServer(best);
       setIsAuto(true);
       setStatus('ready');
     }
     return best;
-  }, [servers]);
+  }, [servers, type, id]);
 
   /**
    * Record a real outcome for a server and, on failure, return the next-best
@@ -321,13 +361,24 @@ export function useEmbedServers({ type, id, season, episode, enabled = true, pre
       const ledger = recordServerOutcome(serverId, ok, startupMs);
       healthRef.current = ledger;
       setHealth(ledger);
-      if (ok) return null;
+      if (ok) {
+        // Save the winning server for this specific webseries across all its episodes!
+        if (type === 'tv' && id) {
+          saveSeriesBestServer(id, serverId);
+        }
+        return null;
+      }
       tried.current.add(serverId);
-      const next = bestServerId(servers, { health: ledger, tried: tried.current });
+      const next = bestServerId(servers, {
+        health: ledger,
+        tried: tried.current,
+        isSeries: type === 'tv',
+        seriesId: type === 'tv' ? id : null,
+      });
       setStatus(next ? 'ready' : 'exhausted');
       return next;
     },
-    [servers]
+    [servers, type, id]
   );
 
   /** Manual retry of the current server: give it a genuine fresh attempt. */

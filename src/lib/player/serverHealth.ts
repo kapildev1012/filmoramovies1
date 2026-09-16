@@ -77,25 +77,20 @@ export interface HealthTarget {
   id: number | string;
   season?: number | null;
   episode?: number | null;
+  isAnime?: boolean;
 }
 
 // ─── Budgets ──────────────────────────────────────────────────────────────────
-// The product requirement is that selection finishes in under a second. These
-// numbers are chosen so the WORST case still does: the edge probe and the
-// reachability probes run concurrently, so the pass costs max(EDGE, CLIENT), not
-// their sum, and both sit comfortably under 1000ms including React's own commit.
-
+// The product requirement is that selection finishes reliably and quickly.
+// Edge and reachability run concurrently.
 /** Total wall-clock budget for one selection pass. */
-export const SELECTION_BUDGET_MS = 900;
+export const SELECTION_BUDGET_MS = 1500;
 /** Deadline handed to /api/embed/servers for its own parallel probe pass. */
-const EDGE_BUDGET_MS = 750;
+const EDGE_BUDGET_MS = 1350;
 /** Per-provider budget for the client-side reachability probe. */
-const REACHABILITY_BUDGET_MS = 600;
+const REACHABILITY_BUDGET_MS = 900;
 /**
- * How long a health result stays usable. The requirement is 30–60s; 45s sits in
- * the middle, which is long enough that flicking between episodes of a series
- * costs no network at all and short enough that a provider that fell over is
- * re-checked while the viewer is still in the same session.
+ * How long a health result stays usable.
  */
 export const HEALTH_TTL_MS = 45 * 1000;
 /**
@@ -112,16 +107,38 @@ const EDGE_RETRIES = 1;
 // Origin only, by design: enough to test the network path, not enough to build a
 // player URL (that stays server-side in src/lib/embed.ts, along with the key).
 const PROVIDER_ORIGIN: Readonly<Record<string, string>> = {
+  vidcore: 'https://vidcore.net',
+  vidrock: 'https://vidrock.ru',
+  vidzee: 'https://player.vidzee.wtf',
+  videasy: 'https://player.videasy.to',
+  mov2day: 'https://cdn.mov2day.xyz',
+  peachify: 'https://peachify.top',
+  '111movies': 'https://111movies.net',
+  toustream: 'https://toustream-play.chickenkiller.com',
+  airflix: 'https://airflix1.com',
+  vidsrc_embed: 'https://vidsrc-embed.ru',
+  vidfast: 'https://vidfast.pro',
+  vidsync: 'https://vidsync.xyz',
+  vidlux: 'https://vidlux.xyz',
+  vidking: 'https://www.vidking.net',
+  mapple: 'https://mappletv.uk',
+  rive: 'https://rivestream.org',
+  fmovies: 'https://www.fmovies.gd',
+  streamxtv: 'https://embed.streamxtv.tech',
+  hexa: 'https://hexa.su',
+  twoembed: 'https://www.2embed.cc',
   vidsrcin: 'https://vidsrc.in',
   vidlink: 'https://vidlink.pro',
   autoembed: 'https://player.autoembed.cc',
   superembed: 'https://multiembed.mov',
-  vidfast: 'https://vidfast.pro',
-  videasy: 'https://player.videasy.net',
-  smashystream: 'https://embed.smashystream.com',
   embedsu: 'https://embed.su',
   vidsrcicu: 'https://vidsrc.icu',
   nexstream: 'https://www.vidking.net',
+  smashystream: 'https://embed.smashystream.com',
+  megaplay: 'https://megaplay.buzz',
+  vidnest_anime: 'https://vidnest.fun',
+  vidnest_animepahe: 'https://vidnest.fun',
+  tryembed: 'https://tryembed.us.cc',
 };
 
 /**
@@ -133,18 +150,41 @@ export const KNOWN_SERVERS: ReadonlyArray<{
   id: string;
   name: string;
   label: string;
+  badge?: string;
   confidence: 'title' | 'live';
 }> = [
-  { id: 'vidsrcin', name: 'VidSrc IN (Hindi)', label: 'Server 1', confidence: 'title' },
-  { id: 'vidlink', name: 'VidLink (Fast HD)', label: 'Server 2', confidence: 'title' },
-  { id: 'autoembed', name: 'AutoEmbed (Multi-Sub)', label: 'Server 3', confidence: 'live' },
-  { id: 'superembed', name: 'SuperEmbed (Multi)', label: 'Server 4', confidence: 'live' },
-  { id: 'vidfast', name: 'VidFast', label: 'Server 5', confidence: 'live' },
-  { id: 'videasy', name: 'Videasy', label: 'Server 6', confidence: 'live' },
-  { id: 'smashystream', name: 'SmashyStream', label: 'Server 7', confidence: 'live' },
-  { id: 'embedsu', name: 'Embed.su (4K/1080p)', label: 'Server 8', confidence: 'live' },
-  { id: 'vidsrcicu', name: 'VidSrc ICU (Global)', label: 'Server 9', confidence: 'live' },
-  { id: 'nexstream', name: 'NexStream (VidKing)', label: 'Server 10', confidence: 'title' },
+  { id: 'vidcore', name: 'VidCore (Fast Series)', label: 'Server 1', badge: 'Fast Series', confidence: 'live' },
+  { id: 'vidrock', name: 'VidRock (EU Mirror)', label: 'Server 2', confidence: 'live' },
+  { id: 'vidzee', name: 'VidZee (HD)', label: 'Server 3', badge: 'HD', confidence: 'live' },
+  { id: 'videasy', name: 'Videasy (Auto-Next)', label: 'Server 4', badge: 'Auto-Next', confidence: 'live' },
+  { id: 'mov2day', name: 'Mov2Day (CDN)', label: 'Server 5', confidence: 'live' },
+  { id: 'peachify', name: 'Peachify (Multi-Audio)', label: 'Server 6', badge: 'Multi-Audio', confidence: 'live' },
+  { id: '111movies', name: '111Movies', label: 'Server 7', confidence: 'live' },
+  { id: 'toustream', name: 'TouStream (Ad-Free)', label: 'Server 8', badge: 'Ad-Free', confidence: 'live' },
+  { id: 'airflix', name: 'AirFlix', label: 'Server 9', confidence: 'live' },
+  { id: 'vidsrc_embed', name: 'VidSrc Embed', label: 'Server 10', confidence: 'live' },
+  { id: 'vidfast', name: 'VidFast', label: 'Server 11', badge: 'Fast', confidence: 'live' },
+  { id: 'vidsync', name: 'VidSync', label: 'Server 12', confidence: 'live' },
+  { id: 'vidlux', name: 'VidLux', label: 'Server 13', confidence: 'live' },
+  { id: 'vidking', name: 'VidKing (Auto-Next)', label: 'Server 14', badge: 'Auto-Next', confidence: 'title' },
+  { id: 'mapple', name: 'Mapple TV', label: 'Server 15', confidence: 'live' },
+  { id: 'rive', name: 'RiveStream (Ad-Free)', label: 'Server 16', badge: 'Ad-Free', confidence: 'live' },
+  { id: 'streamxtv', name: 'StreamXTV Official', label: 'Server 17', badge: 'StreamX', confidence: 'live' },
+  { id: 'hexa', name: 'Hexa HD', label: 'Server 18', badge: 'Ultra-Fast', confidence: 'live' },
+  { id: 'vidsrcin', name: 'VidSrc IN (Hindi/Reg)', label: 'Server 19', badge: 'Hindi/Reg', confidence: 'title' },
+  { id: 'vidlink', name: 'VidLink (Fast HD)', label: 'Server 20', badge: 'Fast HD', confidence: 'title' },
+  { id: 'autoembed', name: 'AutoEmbed (Multi-Sub)', label: 'Server 21', badge: 'Multi-Sub', confidence: 'live' },
+  { id: 'embedsu', name: 'Embed.su (4K/1080p)', label: 'Server 22', badge: '4K/1080p', confidence: 'live' },
+  { id: 'superembed', name: 'SuperEmbed (Multi)', label: 'Server 23', confidence: 'live' },
+  { id: 'twoembed', name: '2Embed', label: 'Server 24', confidence: 'live' },
+  { id: 'fmovies', name: 'FMovies', label: 'Server 25', confidence: 'live' },
+  { id: 'vidsrcicu', name: 'VidSrc ICU (Global)', label: 'Server 26', confidence: 'live' },
+  { id: 'nexstream', name: 'NexStream', label: 'Server 27', confidence: 'title' },
+  { id: 'smashystream', name: 'SmashyStream', label: 'Server 28', confidence: 'live' },
+  { id: 'megaplay', name: 'MegaPlay (Anime)', label: 'Server 29', badge: 'Anime Sub/Dub', confidence: 'live' },
+  { id: 'vidnest_anime', name: 'VidNest (Anime)', label: 'Server 30', badge: 'Anime', confidence: 'live' },
+  { id: 'vidnest_animepahe', name: 'AnimePahe', label: 'Server 31', badge: 'Anime', confidence: 'live' },
+  { id: 'tryembed', name: 'TryEmbed (Anime)', label: 'Server 32', badge: 'Anime', confidence: 'live' },
 ];
 
 /** A list with no evidence attached. Never empty, so the UI always has options. */
@@ -333,6 +373,9 @@ async function probeEdge(
     params.set('season', String(target.season ?? 1));
     params.set('episode', String(target.episode ?? 1));
   }
+  if (target.isAnime) {
+    params.set('anime', '1');
+  }
   params.set('budget', String(EDGE_BUDGET_MS));
 
   const gate = withTimeout(EDGE_BUDGET_MS + 150, signal);
@@ -437,20 +480,26 @@ function now(): number {
 
 // ─── The selection pass ───────────────────────────────────────────────────────
 
+const ANIME_SERVERS = new Set(['megaplay', 'vidnest_anime', 'vidnest_animepahe', 'tryembed']);
+
 function mergeSnapshots(
   edge: EdgeServer[] | null,
-  reach: Map<string, { reachable: boolean | null; latencyMs: number | null }>
+  reach: Map<string, { reachable: boolean | null; latencyMs: number | null }>,
+  isAnime = false
 ): ServerHealthSnapshot[] {
   const byId = new Map((edge ?? []).map((s) => [s.id, s]));
-  // Iterate the client-side registry, not the edge response: a provider missing
-  // from a truncated or partial response must still be offered.
-  return KNOWN_SERVERS.map((meta) => {
+  const candidates = isAnime
+    ? KNOWN_SERVERS
+    : KNOWN_SERVERS.filter((meta) => !ANIME_SERVERS.has(meta.id));
+
+  return candidates.map((meta) => {
     const e = byId.get(meta.id);
     const r = reach.get(meta.id);
     return {
       id: meta.id,
       name: e?.name ?? meta.name,
       label: e?.label ?? meta.label,
+      badge: meta.badge,
       confidence: e?.confidence ?? meta.confidence,
       verified: e?.verified ?? false,
       online: e?.online ?? false,
@@ -483,7 +532,8 @@ export async function checkServerHealth(
 ): Promise<HealthCheckResult> {
   const budget = Math.max(200, options.budgetMs ?? SELECTION_BUDGET_MS);
   const startedAt = now();
-  const ids = KNOWN_SERVERS.map((s) => s.id);
+  const isAnime = !!target.isAnime;
+  const ids = (isAnime ? KNOWN_SERVERS : KNOWN_SERVERS.filter((s) => !ANIME_SERVERS.has(s.id))).map((s) => s.id);
 
   const edgePromise = probeEdge(target, options.signal);
   const reachPromise = probeReachability(ids, options.signal);
@@ -506,9 +556,6 @@ export async function checkServerHealth(
     });
     const outcome = await Promise.race([both, deadline]);
     if (outcome === 'deadline') {
-      // Losing the race is not losing the work: both probes keep going and their
-      // results land in the cache through the revalidation path below, so the
-      // NEXT pass (episode change, or the 45s revalidation) is fully informed.
       void both.catch(() => undefined);
     }
   } catch {
@@ -518,7 +565,7 @@ export async function checkServerHealth(
   }
 
   const result: HealthCheckResult = {
-    servers: mergeSnapshots(edge, reach),
+    servers: mergeSnapshots(edge, reach, isAnime),
     checkedAt: Date.now(),
     elapsedMs: Math.round(now() - startedAt),
     fromCache: false,

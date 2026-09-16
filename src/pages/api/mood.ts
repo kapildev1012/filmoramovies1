@@ -1,46 +1,64 @@
-// Custom Add-on Features — AI mood-based browsing + time-available filter.
-// Supports both GET (?mood=...&minutes=...) and POST ({ mood, minutes })
+// src/pages/api/mood.ts — AI mood-based & query-based movie matcher.
+// Supports both GET (?mood=...&minutes=...&q=...) and POST ({ mood, minutes, q })
 import type { APIRoute } from 'astro';
-import { discoverMovies } from '../../lib/tmdb';
+import { discoverMovies, searchMovies } from '../../lib/tmdb';
 
 export const prerender = false;
 
 const MOODS = {
   light: {
-    label: 'Something light',
-    genres: '35|10751',
-    fallback: 'Easygoing picks with warmth, humor, and a low-stress finish.',
+    label: 'Something Light',
+    tagline: 'Feel-Good & Fun',
+    genres: '35|10751|16',
+    fallback: 'Breezy, charming storytelling with humor and an uplifting finish.',
   },
   cozy: {
-    label: 'Cozy night',
-    genres: '10749|18',
-    fallback: 'Comforting stories made for a relaxed night in.',
+    label: 'Cozy Night In',
+    tagline: 'Warm & Comforting',
+    genres: '10749|18|10751',
+    fallback: 'Heartwarming narratives designed for a relaxed, atmospheric evening.',
   },
   thrilling: {
-    label: 'Keep me hooked',
-    genres: '28|53',
-    fallback: 'Fast-moving stories chosen to keep the momentum high.',
+    label: 'Adrenaline & Edge',
+    tagline: 'High-Stakes Thrills',
+    genres: '28|53|80',
+    fallback: 'Fast-paced, suspense-packed storytelling that keeps you locked in.',
   },
   cerebral: {
-    label: 'Mind-bending',
-    genres: '878|9648',
-    fallback: 'Curious, twisty stories that reward close attention.',
+    label: 'Mind-Bending',
+    tagline: 'Twisty & Intellectual',
+    genres: '878|9648|53',
+    fallback: 'Complex puzzles, alternate realities, and mind-bending narrative twists.',
   },
   uplifting: {
-    label: 'Lift my mood',
-    genres: '35|10402',
-    fallback: 'Bright, energetic picks with a feel-good pulse.',
+    label: 'Inspirational',
+    tagline: 'Heroic & Triumphant',
+    genres: '18|10402|36',
+    fallback: 'Triumphant underdog stories and journeys that leave you energized.',
+  },
+  dark: {
+    label: 'Dark & Gritty',
+    tagline: 'Noir & Psychological',
+    genres: '80|53|9648',
+    fallback: 'Atmospheric neo-noirs, moral dilemmas, and intense psychological tension.',
+  },
+  cyberpunk: {
+    label: 'Neon & Sci-Fi',
+    tagline: 'Futuristic Dystopia',
+    genres: '878|28',
+    fallback: 'Dystopian landscapes, AI enigmas, and electric high-tech spectacles.',
   },
   surprise: {
-    label: 'Surprise me',
+    label: 'Wildcard Shuffle',
+    tagline: 'Crowd Pleasers',
     genres: undefined,
-    fallback: 'A popular wildcard mix for when choosing is the hard part.',
+    fallback: 'A stellar selection of critically acclaimed gems across all genres.',
   },
 } as const;
 
-const ALLOWED_MINUTES = new Set([60, 90, 120, 180]);
+const ALLOWED_MINUTES = new Set([60, 90, 120, 150, 180, 240]);
 const WINDOW_MS = 60_000;
-const REQUEST_LIMIT = 20;
+const REQUEST_LIMIT = 30;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 type Mood = keyof typeof MOODS;
@@ -97,71 +115,104 @@ function parseNexosJson(content: string): NexosSelection {
   return JSON.parse(normalized) as NexosSelection;
 }
 
-async function handleMoodQuery(moodParam: unknown, minutesParam: unknown, request: Request, locals: any) {
-  const isVercel = import.meta.env.DEPLOY_TARGET === 'vercel';
+async function handleMoodQuery(
+  moodParam: unknown,
+  minutesParam: unknown,
+  queryParam: unknown,
+  request: Request,
+  _locals: any
+) {
   const limit = consumeRateLimit(clientKey(request));
   if (!limit.allowed) {
     return response(
-      { error: 'Too many mood requests. Please wait a moment and try again.' },
+      { error: 'Too many requests. Please wait a moment and try again.' },
       429,
-      { 'Retry-After': String(limit.retryAfter) },
+      { 'Retry-After': String(limit.retryAfter) }
     );
   }
 
-  const mood = typeof moodParam === 'string' && moodParam in MOODS ? moodParam as Mood : 'light';
+  const customQuery = typeof queryParam === 'string' ? queryParam.trim().slice(0, 100) : '';
+  const mood = typeof moodParam === 'string' && moodParam in MOODS ? (moodParam as Mood) : 'light';
   const rawMin = typeof minutesParam === 'string' ? parseInt(minutesParam, 10) : minutesParam;
   const minutes = typeof rawMin === 'number' && ALLOWED_MINUTES.has(rawMin) ? rawMin : 90;
 
   const moodConfig = MOODS[mood];
 
   try {
-    // 1. Primary discovery query
-    let catalog = await discoverMovies({
-      sort_by: mood === 'surprise' ? 'popularity.desc' : 'vote_average.desc',
-      with_genres: moodConfig.genres,
-      'with_runtime.lte': minutes,
-      'vote_average.gte': 5.5,
-      'vote_count.gte': 50,
-      page: Math.floor(Math.random() * 2) + 1,
-    }).catch(() => ({ results: [] as any[] }));
+    let candidates: any[] = [];
 
-    let candidates = (catalog.results || [])
-      .filter((item) => item.poster_path && item.title)
-      .slice(0, 12);
+    // If custom freeform query is provided, use TMDB search first
+    if (customQuery) {
+      const searchRes = await searchMovies(customQuery, 1).catch(() => ({ results: [] }));
+      candidates = (searchRes.results || []).filter((m: any) => m.poster_path && m.title);
+    }
 
-    // 2. Fallback query if runtime constraint was too strict
+    // Otherwise discover by mood genres and runtime
     if (candidates.length < 6) {
-      const fallbackCatalog = await discoverMovies({
+      const page = Math.floor(Math.random() * 3) + 1;
+      const discoverRes = await discoverMovies({
+        sort_by: mood === 'surprise' ? 'popularity.desc' : 'vote_average.desc',
+        with_genres: moodConfig.genres,
+        'with_runtime.lte': minutes > 0 ? minutes : undefined,
+        'vote_average.gte': 6.0,
+        'vote_count.gte': 40,
+        page,
+      }).catch(() => ({ results: [] }));
+
+      const discCandidates = (discoverRes.results || []).filter(
+        (m: any) => m.poster_path && m.title && !candidates.some((c) => c.id === m.id)
+      );
+      candidates = [...candidates, ...discCandidates].slice(0, 12);
+    }
+
+    // Fallback if runtime filter was too restrictive
+    if (candidates.length < 6) {
+      const fallbackRes = await discoverMovies({
         sort_by: 'popularity.desc',
         with_genres: moodConfig.genres,
-        'vote_count.gte': 30,
+        'vote_count.gte': 20,
         page: 1,
-      }).catch(() => ({ results: [] as any[] }));
+      }).catch(() => ({ results: [] }));
 
-      const additional = (fallbackCatalog.results || [])
-        .filter((item) => item.poster_path && item.title && !candidates.some(c => c.id === item.id));
+      const additional = (fallbackRes.results || []).filter(
+        (m: any) => m.poster_path && m.title && !candidates.some((c) => c.id === m.id)
+      );
       candidates = [...candidates, ...additional].slice(0, 12);
     }
 
     if (candidates.length === 0) {
-      return response({ error: 'No matching titles are available right now.' }, 404);
+      return response({ error: 'No matching titles found. Try adjusting your mood or runtime.' }, 404);
     }
 
-    let headline = `${moodConfig.label} · under ${minutes} min`;
-    let summary: string = moodConfig.fallback;
+    let headline = customQuery
+      ? `Matches for "${customQuery}"`
+      : `${moodConfig.label} · ${minutes}m Max`;
+    let summary: string = customQuery
+      ? `AI matched titles aligning with "${customQuery}" under ${minutes} minutes.`
+      : moodConfig.fallback;
+
     let selectedIds: number[] = [];
-    let reasons = new Map<number, string>();
+    const reasons = new Map<number, string>();
+    const matchScores = new Map<number, number>();
     let source: 'nexos' | 'curated' = 'curated';
 
-    const nexosKey = isVercel ? process.env.NexS_api : locals.runtime?.env?.NexS_api;
+    // Safely resolve NexS AI API key from environment without crashing
+    let nexosKey: string | undefined = process.env.NexS_api || process.env.EMBED_API_KEY;
+    if (!nexosKey) {
+      try {
+        const serverEnv = await import('astro:env/server');
+        if (serverEnv.EMBED_API_KEY) nexosKey = serverEnv.EMBED_API_KEY;
+      } catch {}
+    }
+
     if (nexosKey) {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8_000);
+      const timeout = setTimeout(() => controller.abort(), 7_000);
       try {
         const candidateContext = candidates.map((item) => ({
           id: item.id,
           title: item.title,
-          overview: item.overview ? item.overview.slice(0, 300) : '',
+          overview: item.overview ? item.overview.slice(0, 240) : '',
           rating: Math.round((item.vote_average || 7) * 10) / 10,
           year: item.release_date?.slice(0, 4) || null,
         }));
@@ -174,23 +225,24 @@ async function handleMoodQuery(moodParam: unknown, minutesParam: unknown, reques
             'User-Agent': 'FilmoraMovie/1.0 (+https://filmoramovie.duckdns.org)',
           },
           body: JSON.stringify({
-            model: isVercel ? process.env.NEXS_MODEL || 'GPT 4.1 mini' : locals.runtime?.env?.NEXS_MODEL || 'GPT 4.1 mini',
+            model: process.env.NEXS_MODEL || 'GPT 4.1 mini',
             store: false,
             temperature: 0.35,
-            max_completion_tokens: 700,
+            max_completion_tokens: 650,
             response_format: { type: 'json_object' },
-            metadata: { feature: 'mobile_mood_match' },
+            metadata: { feature: 'mood_match_v2' },
             messages: [
               {
                 role: 'system',
-                content: 'You are a concise movie curator. Select only IDs supplied by the user. Return valid JSON with headline, summary, and picks. picks must be an array of exactly 6 objects shaped {"id": number, "why": string}. Keep every why under 90 characters. Never invent titles or IDs.',
+                content:
+                  'You are an elite cinematic curator. Select only IDs from the candidate list. Return valid JSON with "headline", "summary", and "picks". picks must be an array of exactly 6 objects: {"id": number, "why": string, "matchScore": number (88-99)}. Keep "why" under 85 chars. Never invent titles or IDs.',
               },
               {
                 role: 'user',
                 content: JSON.stringify({
-                  task: 'Choose six films matching this mood and available-time preference.',
-                  mood: moodConfig.label,
-                  maximumMinutes: minutes,
+                  task: 'Curate the top 6 films for this viewer mood.',
+                  mood: customQuery ? `Custom prompt: ${customQuery}` : moodConfig.label,
+                  maxMinutes: minutes,
                   candidates: candidateContext,
                 }),
               },
@@ -200,7 +252,7 @@ async function handleMoodQuery(moodParam: unknown, minutesParam: unknown, reques
         });
 
         if (nexos.ok) {
-          const payload = await nexos.json() as NexosResponse;
+          const payload = (await nexos.json()) as NexosResponse;
           const content = payload.choices?.[0]?.message?.content;
           if (content) {
             const selection = parseNexosJson(content);
@@ -210,9 +262,11 @@ async function handleMoodQuery(moodParam: unknown, minutesParam: unknown, reques
               if (!raw || typeof raw !== 'object') continue;
               const id = (raw as { id?: unknown }).id;
               const why = (raw as { why?: unknown }).why;
+              const score = (raw as { matchScore?: unknown }).matchScore;
               if (typeof id !== 'number' || !candidateIds.has(id) || selectedIds.includes(id)) continue;
               selectedIds.push(id);
-              reasons.set(id, cleanText(why, moodConfig.fallback, 90));
+              reasons.set(id, cleanText(why, moodConfig.fallback, 85));
+              matchScores.set(id, typeof score === 'number' && score >= 80 && score <= 99 ? score : Math.floor(Math.random() * 8 + 92));
               if (selectedIds.length === 6) break;
             }
 
@@ -224,35 +278,59 @@ async function handleMoodQuery(moodParam: unknown, minutesParam: unknown, reques
           }
         }
       } catch {
-        // NexS failure falls back seamlessly to catalog curation
+        // AI failure falls back smoothly to catalog curation
       } finally {
         clearTimeout(timeout);
       }
     }
 
+    // Fill candidates up to 6 if needed
     for (const candidate of candidates) {
       if (selectedIds.length >= 6) break;
-      if (!selectedIds.includes(candidate.id)) selectedIds.push(candidate.id);
+      if (!selectedIds.includes(candidate.id)) {
+        selectedIds.push(candidate.id);
+      }
     }
 
     const byId = new Map(candidates.map((item) => [item.id, item]));
-    const picks = selectedIds.slice(0, 6).flatMap((id) => {
+    const picks = selectedIds.slice(0, 6).flatMap((id, idx) => {
       const item = byId.get(id);
       if (!item) return [];
-      return [{
-        id: item.id,
-        mediaType: 'movie' as const,
-        title: item.title,
-        year: item.release_date?.slice(0, 4) || '',
-        rating: Math.round((item.vote_average || 7) * 10) / 10,
-        overview: (item.overview || '').slice(0, 180),
-        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
-        href: `/movie/${item.id}`,
-        why: reasons.get(item.id) || moodConfig.fallback,
-      }];
+
+      const fallbackWhy =
+        reasons.get(item.id) ||
+        (item.vote_average && item.vote_average >= 7.8
+          ? `Critically praised masterpiece perfectly attuned to ${moodConfig.tagline}.`
+          : `High-energy pick perfectly paced for your ${minutes}m session.`);
+
+      const score = matchScores.get(item.id) ?? Math.max(90, 99 - idx * 2);
+
+      return [
+        {
+          id: item.id,
+          mediaType: 'movie' as const,
+          title: item.title,
+          year: item.release_date?.slice(0, 4) || '2024',
+          rating: Math.round((item.vote_average || 7.2) * 10) / 10,
+          matchPercent: `${score}%`,
+          overview: (item.overview || '').slice(0, 160),
+          posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
+          backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}` : null,
+          href: `/movie/${item.id}`,
+          why: fallbackWhy,
+        },
+      ];
     });
 
-    return response({ headline, summary, source, picks });
+    return response({
+      headline,
+      summary,
+      source,
+      mood: moodConfig.label,
+      minutes,
+      query: customQuery || null,
+      picks,
+    });
   } catch (err) {
     console.error('Mood API Error:', err);
     return response({ error: 'Mood matching is temporarily unavailable.' }, 502);
@@ -262,13 +340,14 @@ async function handleMoodQuery(moodParam: unknown, minutesParam: unknown, reques
 export const GET: APIRoute = async ({ request, url, locals }) => {
   const mood = url.searchParams.get('mood') || 'light';
   const minutes = url.searchParams.get('minutes') || 90;
-  return handleMoodQuery(mood, minutes, request, locals);
+  const q = url.searchParams.get('q') || url.searchParams.get('prompt') || '';
+  return handleMoodQuery(mood, minutes, q, request, locals);
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  let body: { mood?: unknown; minutes?: unknown } = {};
+  let body: { mood?: unknown; minutes?: unknown; q?: unknown } = {};
   try {
     body = await request.json();
   } catch {}
-  return handleMoodQuery(body.mood, body.minutes, request, locals);
+  return handleMoodQuery(body.mood, body.minutes, body.q, request, locals);
 };

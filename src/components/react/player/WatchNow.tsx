@@ -68,6 +68,8 @@ export interface WatchNowProps {
   related?: RelatedTitle[];
   /** UI language for the player chrome. */
   locale?: Locale;
+  /** Genres for title-specific server matching (e.g. animation/anime vs live-action). */
+  genres?: string[];
 }
 
 export default function WatchNow({
@@ -82,6 +84,7 @@ export default function WatchNow({
   markers = [],
   related = [],
   locale = 'en',
+  genres = [],
 }: WatchNowProps) {
   /**
    * Locale is resolved in the browser, not on the server. Detail pages are
@@ -192,6 +195,8 @@ export default function WatchNow({
     }
   }, [numericId, mediaType, isSeries, effectiveSeasons]);
 
+  const isAnime = useMemo(() => Boolean(genres?.some((g) => /anim/i.test(g))), [genres]);
+
   // ── Streaming servers (embed engine only) ─────────────────────────────────
   // Nothing is preselected. The hook scores every server from a parallel health
   // pass (see lib/player/serverHealth.ts) and hands back a decision within its
@@ -218,6 +223,7 @@ export default function WatchNow({
     episode: current?.episode ?? null,
     enabled: engine === 'embed' && (!isSeries || current !== null),
     preferred: preferredServer,
+    isAnime,
   });
 
   // ── Season fetching ───────────────────────────────────────────────────────
@@ -664,20 +670,39 @@ export default function WatchNow({
   }, [engine, isSeries, started, neighbours.next, id, prefetch]);
 
   // ── Chrome data ───────────────────────────────────────────────────────────
-  // Ranked order, so the bar reads best-first and the badge on the leader is the
-  // truth about what "Auto" would play.
-  const serverOptions: ServerOption[] = ranked.map(({ server: s, reason }) => ({
-    id: s.id,
-    name: s.name,
-    verified: s.verified,
-    online: s.online,
-    live: s.live,
-    qualityLabel: s.qualityLabel ?? null,
-    latencyMs: s.latencyMs ?? null,
-    pending: s.pending ?? false,
-    reachable: s.reachable ?? null,
-    failed: reason === 'failing',
-  }));
+  // Filter out any servers that are definitively not working or not suitable for this title:
+  // - Anime-only servers on non-anime titles
+  // - Servers confirmed unreachable/blocked on the viewer's network
+  // - Servers that failed during playback in this session
+  // - Servers confirmed dead/offline by the edge probe
+  const ANIME_SERVER_IDS = useMemo(
+    () => new Set(['megaplay', 'vidnest_anime', 'vidnest_animepahe', 'tryembed']),
+    []
+  );
+
+  const serverOptions: ServerOption[] = useMemo(() => {
+    return ranked
+      .filter(({ server: s, reason }) => {
+        if (!isAnime && ANIME_SERVER_IDS.has(s.id)) return false;
+        if (s.reachable === false) return false;
+        if (reason === 'failing') return false;
+        if (s.online === false && s.pending === false) return false;
+        return true;
+      })
+      .map(({ server: s, reason }) => ({
+        id: s.id,
+        name: s.name,
+        badge: s.badge,
+        verified: s.verified,
+        online: s.online,
+        live: s.live,
+        qualityLabel: s.qualityLabel ?? null,
+        latencyMs: s.latencyMs ?? null,
+        pending: s.pending ?? false,
+        reachable: s.reachable ?? null,
+        failed: reason === 'failing',
+      }));
+  }, [ranked, isAnime, ANIME_SERVER_IDS]);
 
   const subtitle = isSeries && current
     ? [`S${current.season}`, `E${current.episode}`, currentEpisodeName].filter(Boolean).join(' · ')

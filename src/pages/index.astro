@@ -153,15 +153,11 @@ const hasContent = heroAll.length > 0 || trending.length > 0;
         {/* ── Continue Watching (renders only when the user has saved items) ── */}
         <div data-reveal>
           <ContinueWatchingRail client:idle title="Continue Watching" />
-          {/* Custom Add-on Features — AI mood + time matching (all viewports).
-              client:visible rather than client:only: every client:only island in
-              a page makes Astro's view-transition router reload the whole target
-              page in a hidden iframe before it can swap. This component reads
-              window/localStorage only inside effects, so it server-renders
-              safely. */}
-          <div class="mood-block">
-            <MoodMatch client:visible />
-          </div>
+        </div>
+
+        {/* ── Custom Add-on: AI Mood & Craving Matcher ── */}
+        <div data-reveal class="mood-block">
+          <MoodMatch client:idle />
         </div>
 
         {trending.length > 0 && (
